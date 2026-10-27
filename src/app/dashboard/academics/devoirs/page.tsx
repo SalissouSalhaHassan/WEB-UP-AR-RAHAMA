@@ -1,0 +1,375 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  ClipboardCheck, 
+  GraduationCap, 
+  ArrowLeft
+} from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
+import { toast } from "sonner";
+import AcademicFilters from "@/domains/academics/components/AcademicFilters";
+import DevoirEntryGrid from "@/domains/academics/components/DevoirEntryGrid";
+import { getDevoirGrid, saveDevoirGrades } from "@/domains/academics/actions/academics.actions";
+import { useOfflineMutation } from "@/hooks/use-offline-mutation";
+import { cacheDevoirGrid, getCachedDevoirGrid } from "@/infrastructure/local-db/cache";
+
+import { Sparkles, BrainCircuit, Wand2 } from "lucide-react";
+import AITeacherAssistantModal from "@/domains/ai/components/AITeacherAssistantModal";
+
+export default function DevoirEntryPage() {
+  const { mutate, isOnline } = useOfflineMutation<{ devoirsList: any[] }>();
+  const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const [activeFilters, setActiveFilters] = useState<any>(null);
+  const [gridMeta, setGridMeta] = useState<{
+    coefficient?: number;
+    subjectName?: string;
+    className?: string;
+    educationalLevel?: string;
+  }>({});
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [isLocal, setIsLocal] = useState(false);
+  const [isLockedByFreeze, setIsLockedByFreeze] = useState(false);
+  const [freezeReason, setFreezeReason] = useState("");
+
+  const handleLoad = async (filters: any) => {
+    console.log("[DevoirEntry] Loading with filters:", filters);
+    setLoading(true);
+    setActiveFilters(filters);
+    
+    if (filters.isLocked) {
+      setIsLockedByFreeze(true);
+      setFreezeReason(
+        filters.isSessionFrozen
+          ? "🔒 L'année scolaire sélectionnée est clôturée et gelée (Mode lecture seule)."
+          : "🔒 La période d'évaluation sélectionnée est verrouillée (Mode lecture seule)."
+      );
+    } else {
+      setIsLockedByFreeze(false);
+      setFreezeReason("");
+    }
+    
+    try {
+      let result: any = null;
+      if (navigator.onLine) {
+        result = await getDevoirGrid({
+          classId: filters.classId,
+          subjectId: filters.subjectId,
+          sessionId: filters.sessionId,
+          term: filters.period,
+        }).catch(err => {
+          console.warn("Failed to load online devoirs grid:", err);
+          return null;
+        });
+      }
+      
+      if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
+        setStudents(result.data);
+        setIsLocal(false);
+        setGridMeta({
+          coefficient: result.coefficient,
+          subjectName: result.subjectName,
+          className: result.className,
+          educationalLevel: result.educationalLevel
+        });
+
+        if (result?.isLocked) {
+          setIsLockedByFreeze(true);
+          setFreezeReason(result.lockReason || "Cette période ou cette année scolaire est verrouillée.");
+        }
+
+        toast.success("Grille des devoirs (DS) chargée avec succès.");
+
+        // Cache locally for offline availability
+        try {
+          await cacheDevoirGrid(
+            Number(filters.classId),
+            Number(filters.subjectId),
+            Number(filters.sessionId),
+            filters.period,
+            result
+          );
+        } catch (e) {
+          console.warn("Failed to cache devoirs locally:", e);
+        }
+      } else {
+        // Try offline fallback
+        const cached = await getCachedDevoirGrid(
+          Number(filters.classId),
+          Number(filters.subjectId),
+          Number(filters.sessionId),
+          filters.period
+        );
+        if (cached && cached.data?.length > 0) {
+          setStudents(cached.data);
+          if (cached.coefficient || cached.subjectName || cached.className) {
+            setGridMeta({
+              coefficient: cached.coefficient,
+              subjectName: cached.subjectName,
+              className: cached.className,
+              educationalLevel: cached.educationalLevel
+            });
+          }
+          setIsLocal(true);
+          toast.info("Affichage des devoirs en cache local (hors-ligne).");
+        } else {
+          // Smart Offline Grid Initializer for Devoirs: Build from localDb.students!
+          const { localDb } = await import("@/infrastructure/local-db/dexie");
+          const { getCachedReferenceItems } = await import("@/infrastructure/local-db/references");
+          const { getClassDisplayName } = await import("@/domains/academics/utils/class-name");
+
+          const cachedClasses = await getCachedReferenceItems<any>("class");
+          const selectedClass = cachedClasses.find((c: any) => Number(c.id) === Number(filters.classId));
+          const targetClassName = selectedClass ? getClassDisplayName(selectedClass, "").toLowerCase().trim() : "";
+
+          const allStudents = await localDb.students.toArray();
+          let matchedStudents: any[] = [];
+
+          if (targetClassName) {
+            matchedStudents = allStudents.filter((s: any) => {
+              const sc = String(s.classe || "").toLowerCase().trim();
+              return sc === targetClassName || targetClassName.includes(sc) || sc.includes(targetClassName);
+            });
+          }
+
+          if (matchedStudents.length === 0 && allStudents.length > 0) {
+            matchedStudents = allStudents;
+          }
+
+          if (matchedStudents.length > 0) {
+            const offlineDevoirRows = matchedStudents.map((st) => {
+              const anySt = st as any;
+              const fullName = st.nomEtudiant || (anySt.prenom ? `${anySt.prenom} ${anySt.nom || ""}`.trim() : "") || `Élève #${st.id}`;
+              return {
+                id: st.id,
+                studentId: st.id,
+                nomEtudiant: fullName,
+                name: fullName,
+                numAdmission: st.numAdmission || "",
+                matricule: st.numAdmission || "",
+                gender: st.sexe || anySt.gender || "M",
+                classe: st.classe || targetClassName,
+                existingResult: null,
+                devoirs: [null, null, null, null, null],
+                moyenneDevoirs: 0,
+              };
+            });
+
+            setStudents(offlineDevoirRows);
+            setIsLocal(true);
+            setGridMeta({
+              className: targetClassName || selectedClass?.className || "Classe",
+              subjectName: "Matière",
+            });
+            toast.info(`Filtres hors-ligne : ${offlineDevoirRows.length} élève(s) initialisé(s) pour la saisie.`);
+          } else {
+            toast.error("Pas de connexion internet et aucune donnée en cache local.");
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed in handleLoad for devoirs:", err);
+      toast.error("Erreur lors du chargement des devoirs.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (data: any[]) => {
+    if (!activeFilters) return;
+    
+    if (isLockedByFreeze) {
+      toast.error("Modification impossible", {
+        description: freezeReason || "L'année scolaire ou la période est verrouillée (Mode lecture seule)."
+      });
+      return;
+    }
+
+    setLoading(true);
+    const toastId = toast.loading("Enregistrement et synchronisation des devoirs en cours...");
+
+    try {
+      const payload = data.map(row => ({
+        studentId: Number(row.studentId),
+        subjectId: Number(activeFilters.subjectId),
+        classId: Number(activeFilters.classId),
+        sessionId: Number(activeFilters.sessionId),
+        term: activeFilters.period,
+        devoirs: row.devoirs.map((v: string) => v === "" || v === null ? null : parseFloat(v)),
+        moyenneDevoirs: row.moyenneDevoirs
+      }));
+
+      // Cache locally immediately
+      try {
+        await cacheDevoirGrid(
+          Number(activeFilters.classId),
+          Number(activeFilters.subjectId),
+          Number(activeFilters.sessionId),
+          activeFilters.period,
+          { data }
+        );
+      } catch (e) {
+        console.warn("Failed to cache devoirs during save:", e);
+      }
+
+      const idempotencyKey = `devoirs:${activeFilters.classId}_${activeFilters.subjectId}_${activeFilters.sessionId}_${activeFilters.period}`;
+      const result = await mutate(
+        { devoirsList: payload },
+        {
+          targetTable: "devoirs",
+          onlineAction: async (p) => saveDevoirGrades(p.devoirsList),
+          entity: "devoirs",
+          entityId: `${activeFilters.classId}_${activeFilters.subjectId}_${activeFilters.period}`,
+          idempotencyKey,
+        }
+      );
+
+      if (result?.success) {
+        if (result.fromCloud) {
+          setIsLocal(false);
+          toast.success("Succès de l'enregistrement !", {
+            id: toastId,
+            description: "Les devoirs (DS) ont été synchronisés avec succès sur le serveur.",
+            duration: 5000
+          });
+        } else {
+          setIsLocal(true);
+          toast.warning("Devoirs enregistrés localement (Mode Hors-Ligne)", {
+            id: toastId,
+            description: "Modifications sauvegardées sur cet appareil. Elles seront synchronisées dès que la connexion sera rétablie 📶.",
+            duration: 6000
+          });
+        }
+      } else {
+        toast.error("Erreur d'enregistrement", {
+          id: toastId,
+          description: result?.error || "Une erreur est survenue lors de l'enregistrement.",
+          duration: 5000
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erreur critique d'enregistrement", {
+        id: toastId,
+        description: err?.message || "Impossible de joindre le serveur.",
+        duration: 5000
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0A0C10] p-4 md:p-8">
+      <div className="max-w-[1600px] mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard/academics/grades">
+              <Button variant="ghost" className="rounded-2xl h-14 w-14 p-0 bg-white dark:bg-[#131622] border border-transparent dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                <ArrowLeft size={24} className="text-slate-600 dark:text-slate-300" />
+              </Button>
+            </Link>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 bg-emerald-500 rounded-lg text-white">
+                  <ClipboardCheck size={20} />
+                </div>
+                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Gestion des Devoirs (DS)
+                </h1>
+                {gridMeta.coefficient && (
+                  <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs rounded-full border border-emerald-500/20">
+                    Coeff : {gridMeta.coefficient}
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-500 dark:text-slate-400 font-medium ml-1">
+                Saisie détaillée des évaluations continues, calcul des moyennes et synchronisation directe avec les bulletins.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setShowAIModal(true)}
+              className="h-12 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black hover:from-indigo-700 hover:to-purple-700 shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2 text-xs"
+            >
+              <Wand2 size={16} /> Assistant IA Devoirs 🪄
+            </Button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <AcademicFilters onLoad={handleLoad} loading={loading} />
+
+        {/* Content */}
+        <AnimatePresence mode="wait">
+          {students.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+            >
+              <div className="space-y-4">
+                {isLockedByFreeze && (
+                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-rose-300">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 font-bold text-lg">🔒</span>
+                      <div>
+                        <h4 className="font-bold text-sm text-rose-200">Saisie des devoirs verrouillée</h4>
+                        <p className="text-xs text-rose-300/80 font-medium">
+                          {freezeReason || "L'année scolaire ou la période est clôturée. La saisie des devoirs est en mode consultation seule."}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full">
+                      Lecture seule
+                    </span>
+                  </div>
+                )}
+                <DevoirEntryGrid 
+                  students={students} 
+                  onSave={handleSave} 
+                  loading={loading}
+                  readOnly={isLockedByFreeze}
+                  subjectName={gridMeta.subjectName}
+                  className={gridMeta.className}
+                  coefficient={gridMeta.coefficient}
+                  term={activeFilters?.period}
+                />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="py-32 text-center bg-white dark:bg-[#131622] rounded-[4rem] border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm"
+            >
+              <div className="p-8 bg-slate-50 dark:bg-slate-900 rounded-full w-fit mx-auto mb-6">
+                <GraduationCap size={48} className="text-slate-400 dark:text-slate-500" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
+                Sélectionnez une classe et une matière
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 font-medium max-w-md mx-auto">
+                Choisissez les filtres académiques ci-dessus pour charger la grille de saisie des devoirs.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AI Teacher Assistant Generator Modal */}
+        <AITeacherAssistantModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+        />
+      </div>
+    </div>
+  );
+}
