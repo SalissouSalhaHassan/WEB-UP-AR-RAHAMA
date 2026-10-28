@@ -14,7 +14,7 @@ BEGIN
       AND t.relname = 'employees'
       AND c.contype = 'u'
       AND (
-        SELECT array_agg(a.attname ORDER BY ord.ordinality)
+        SELECT array_agg(a.attname::text ORDER BY ord.ordinality)
         FROM unnest(c.conkey) WITH ORDINALITY AS ord(attnum, ordinality)
         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ord.attnum
       ) = ARRAY['emp_id']
@@ -31,7 +31,7 @@ BEGIN
       AND t.relname = 'employees'
       AND c.contype = 'u'
       AND (
-        SELECT array_agg(a.attname ORDER BY ord.ordinality)
+        SELECT array_agg(a.attname::text ORDER BY ord.ordinality)
         FROM unnest(c.conkey) WITH ORDINALITY AS ord(attnum, ordinality)
         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ord.attnum
       ) = ARRAY['school_id', 'emp_id']

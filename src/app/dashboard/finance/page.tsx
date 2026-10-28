@@ -492,7 +492,7 @@ export default async function FinancePage({
         activeSessionName="2025–2026"
         schoolName="CES BOURJA"
         currentUser={null}
-        currentSchoolId={1}
+        currentSchoolId={2}
         isSessionFrozen={false}
         sessions={[]}
         currentSessionId={null}

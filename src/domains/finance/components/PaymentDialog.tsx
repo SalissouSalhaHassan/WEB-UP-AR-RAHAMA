@@ -146,7 +146,7 @@ export default function PaymentDialog({
 
       resolvedCashier = resolvedCashier || "Admin";
       resolvedUserId = resolvedUserId || "Admin";
-      resolvedSchoolId = resolvedSchoolId || 1;
+      resolvedSchoolId = resolvedSchoolId || 2;
       resolvedSchoolName = resolvedSchoolName || "CES BOURJA";
 
       const data: PaymentFormData & { schoolId?: number; recordedBy?: string } = {

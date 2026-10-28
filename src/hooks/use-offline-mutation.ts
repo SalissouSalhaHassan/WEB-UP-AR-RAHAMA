@@ -171,7 +171,7 @@ export function useOfflineMutation<T>() {
 
       // Tier 5: Absolute default fallbacks to prevent orphaned / anonymous outbox actions
       if (!schoolId) {
-        schoolId = 1;
+        schoolId = 2;
       }
       if (!schoolName) {
         schoolName = "CES BOURJA";
