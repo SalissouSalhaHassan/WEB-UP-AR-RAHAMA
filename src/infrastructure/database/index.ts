@@ -32,7 +32,12 @@ function normalizeDatabaseUrl(value: string | undefined) {
 
   const trimmed = value.trim().replace(/^['"]|['"]$/g, "");
   const assignment = trimmed.match(/^[A-Z0-9_]+\s*=\s*(.+)$/i);
-  const url = (assignment ? assignment[1] : trimmed).trim().replace(/^['"]|['"]$/g, "");
+  let url = (assignment ? assignment[1] : trimmed).trim().replace(/^['"]|['"]$/g, "");
+
+  // Auto-heal Supabase pooler region for project hxweqrfgqlrzjcjjemme (CES BOURJA lives on aws-1-us-west-2)
+  if (url.includes("hxweqrfgqlrzjcjjemme")) {
+    url = url.replace(/@aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com/i, "@aws-1-us-west-2.pooler.supabase.com");
+  }
 
   return url || undefined;
 }
