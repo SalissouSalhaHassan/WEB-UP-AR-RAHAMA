@@ -130,7 +130,9 @@ export function useOfflineMutation<T>() {
       // Tier 2: Check IndexedDB localDb.references for cached session
       if (!userId || !schoolId || !userName || !schoolName) {
         try {
-          const sessionRef = await localDb.references.where("type").equals("session" as any).first();
+          const sessionRef =
+            (await localDb.references.where("type").equals("userSession" as any).first()) ||
+            (await localDb.references.where("label").equals("currentUser").first());
           if (sessionRef?.payload) {
             if (!userId) userId = sessionRef.payload.id || sessionRef.payload.utilisateur || null;
             if (!userName) userName = sessionRef.payload.nomPrenom || sessionRef.payload.utilisateur || null;

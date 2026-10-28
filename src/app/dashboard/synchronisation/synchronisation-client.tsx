@@ -79,7 +79,12 @@ export default function SynchronisationClient() {
   const outbox = useLiveQuery(() => localDb.outbox.orderBy("timestamp").reverse().toArray(), []) || [];
 
   // Query local session reference
-  const sessionRef = useLiveQuery(() => localDb.references.where("type").equals("session" as any).first(), []);
+  const sessionRef = useLiveQuery(
+    async () =>
+      (await localDb.references.where("type").equals("userSession" as any).first()) ||
+      (await localDb.references.where("label").equals("currentUser").first()),
+    []
+  );
 
   // Retrieve cached session user from localStorage
   const cachedUser = useMemo(() => {

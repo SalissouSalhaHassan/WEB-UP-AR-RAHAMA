@@ -43,8 +43,13 @@ export function AcademicSettings({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  const sanitizeSessions = (list: any[]) =>
+    (Array.isArray(list) ? list : [])
+      .filter((s: any) => Boolean(s?.sessionName || s?.session_name))
+      .map((s: any) => ({ ...s, sessionName: s.sessionName || s.session_name }));
+
   // Local reactive states for Instant/Optimistic 0ms UI updates
-  const [sessionsList, setSessionsList] = useState(initialSessions || []);
+  const [sessionsList, setSessionsList] = useState(() => sanitizeSessions(initialSessions));
   const [classesList, setClassesList] = useState(initialClasses || []);
   const [sectionsList, setSectionsList] = useState(initialSections || []);
   const [subjectsList, setSubjectsList] = useState(initialSubjects || []);
@@ -55,7 +60,7 @@ export function AcademicSettings({
   const [remarksList, setRemarksList] = useState(initialSchoolRemarks || []);
   const [educationalLevelsList, setEducationalLevelsList] = useState(initialEducationalLevels || []);
 
-  useEffect(() => { setSessionsList(initialSessions || []); }, [initialSessions]);
+  useEffect(() => { setSessionsList(sanitizeSessions(initialSessions)); }, [initialSessions]);
   useEffect(() => { setClassesList(initialClasses || []); }, [initialClasses]);
   useEffect(() => { setSectionsList(initialSections || []); }, [initialSections]);
   useEffect(() => { setSubjectsList(initialSubjects || []); }, [initialSubjects]);
@@ -114,7 +119,7 @@ export function AcademicSettings({
           if (mounted && cachedPeriods.length > 0) setPeriodsList(cachedPeriods);
         }
         if (!initialSessions || initialSessions.length === 0) {
-          const cachedSessions = await getCachedReferenceItems("session");
+          const cachedSessions = sanitizeSessions(await getCachedReferenceItems("session"));
           if (mounted && cachedSessions.length > 0) setSessionsList(cachedSessions);
         }
       } catch (e) {
@@ -136,7 +141,8 @@ export function AcademicSettings({
           if (cClasses.length > 0) setClassesList(cClasses);
           if (cSections.length > 0) setSectionsList(cSections);
           if (cPeriods.length > 0) setPeriodsList(cPeriods);
-          if (cSessions.length > 0) setSessionsList(cSessions);
+          const validSessions = sanitizeSessions(cSessions);
+          if (validSessions.length > 0) setSessionsList(validSessions);
         }
       } catch (e) {}
     };
@@ -1341,14 +1347,14 @@ export function AcademicSettings({
           </Button>
         </div>
         <div className="space-y-2">
-          {sessionsList?.map((s: any) => {
+          {sessionsList?.filter((s: any) => Boolean(s?.sessionName || s?.session_name)).map((s: any) => {
             const isFrozen = s.status === "Clôturé" || s.status === "Gelé" || s.status === "Verrouillé" || s.status === "Archivé";
             const isActive = Boolean(s.isActive);
 
             return (
               <div key={s.id} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${isActive && !isFrozen ? 'bg-emerald-500/5 border-emerald-500/30' : isFrozen ? 'bg-rose-500/5 border-rose-500/30' : 'bg-[#181924] border-slate-800/50'}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-200 font-bold text-base">{s.sessionName}</span>
+                  <span className="text-slate-200 font-bold text-base">{s.sessionName || s.session_name}</span>
                   
                   {/* Status Badges */}
                   {isActive && !isFrozen ? (

@@ -34,13 +34,20 @@ export default function SyncStatus({ user }: SyncStatusProps = {}) {
           localStorage.setItem("active_school_id", String(sessionPayload.schoolId));
         }
 
-        localDb.references.put({
-          type: "session" as any,
-          remoteId: user.id,
-          label: "currentUser",
-          payload: sessionPayload,
-          updatedAt: Date.now(),
-        }).catch(() => {});
+        localDb.references
+          .where("label")
+          .equals("currentUser")
+          .delete()
+          .then(() =>
+            localDb.references.put({
+              type: "userSession" as any,
+              remoteId: user.id,
+              label: "currentUser",
+              payload: sessionPayload,
+              updatedAt: Date.now(),
+            })
+          )
+          .catch(() => {});
       } catch (_) {}
     }
   }, [user]);

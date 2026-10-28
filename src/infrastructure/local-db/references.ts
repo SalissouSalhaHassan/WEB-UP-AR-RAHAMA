@@ -20,6 +20,23 @@ export async function cacheReferenceItems(type: ReferenceType, items: any[], lab
 
 export async function getCachedReferenceItems<T = any>(type: ReferenceType): Promise<T[]> {
   const rows = await localDb.references.where("type").equals(type).toArray();
+  if (type === "session") {
+    const staleUserRows = rows.filter(
+      (r) => r.label === "currentUser" || !(r.payload?.sessionName || r.payload?.session_name)
+    );
+    if (staleUserRows.length > 0) {
+      const idsToDelete = staleUserRows.map((r) => r.id).filter((id): id is number => typeof id === "number");
+      if (idsToDelete.length > 0) {
+        await localDb.references.bulkDelete(idsToDelete).catch(() => {});
+      }
+    }
+    return rows
+      .filter((r) => r.label !== "currentUser" && Boolean(r.payload?.sessionName || r.payload?.session_name))
+      .map((row) => ({
+        ...row.payload,
+        sessionName: row.payload.sessionName || row.payload.session_name,
+      }) as T);
+  }
   return rows.map((row) => row.payload as T);
 }
 

@@ -95,7 +95,7 @@ export interface LocalDevoirGrade {
 
 export interface LocalReferenceItem {
   id?: number;
-  type: "class" | "subject" | "session" | "period" | "section" | "level" | "studentCategory" | "studentFees" | "attendance" | "exams" | "examResults" | "studentResults" | "gradingGrid" | "lmsCache";
+  type: "class" | "subject" | "session" | "userSession" | "period" | "section" | "level" | "studentCategory" | "studentFees" | "attendance" | "exams" | "examResults" | "studentResults" | "gradingGrid" | "lmsCache";
   remoteId?: number | string | null;
   label: string;
   payload: any;

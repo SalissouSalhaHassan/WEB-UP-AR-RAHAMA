@@ -179,8 +179,9 @@ export default function LoginPage() {
         localStorage.setItem("edut_offline_mode", "true");
 
         const { localDb } = await import("@/infrastructure/local-db/dexie");
+        await localDb.references.where("label").equals("currentUser").delete().catch(() => {});
         await localDb.references.put({
-          type: "session" as any,
+          type: "userSession" as any,
           remoteId: offlineSession.id,
           label: "currentUser",
           payload: offlineSession,
