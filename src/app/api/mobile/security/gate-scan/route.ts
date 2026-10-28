@@ -5,6 +5,9 @@ import { students } from "@/infrastructure/database/schema/students";
 import { schools } from "@/infrastructure/database/schema/auth";
 import { hostelExitPermissions } from "@/infrastructure/database/schema/hostel";
 import { notifications } from "@/infrastructure/database/schema/messaging";
+import { studentFees } from "@/infrastructure/database/schema/finance";
+import { studentAttendance } from "@/infrastructure/database/schema/attendance";
+import { schoolClasses } from "@/infrastructure/database/schema/academics";
 import { getMobileUser, mobileJsonError } from "../../_lib/auth";
 import { decodeStudentToken } from "@/shared/utils/student-token";
 
@@ -99,22 +102,69 @@ export async function POST(request: NextRequest) {
       // Ignore if table schema not linked
     }
 
-    // 5. Evaluate Gate Decision Status
+    // 5. Check Student Financial Status (studentFees)
+    let financialStatus = {
+      isUpToDate: true,
+      balance: Number(student.ancienSolde || 0),
+      totalExpected: Number(student.fraisMensuels || 0),
+      totalPaid: 0,
+      status: Number(student.ancienSolde || 0) > 0 ? "Impayé" : "En règle",
+    };
+    try {
+      const feeRecords = await readDb.query.studentFees.findMany({
+        where: eq(studentFees.studentId, student.id),
+        orderBy: [desc(studentFees.id)],
+        limit: 1,
+      });
+      if (feeRecords.length > 0) {
+        const fee = feeRecords[0];
+        const bal = Number(fee.balance || 0);
+        financialStatus = {
+          isUpToDate: bal <= 0,
+          balance: bal,
+          totalExpected: Number(fee.totalExpected || 0),
+          totalPaid: Number(fee.totalPaid || 0),
+          status: bal <= 0 ? "En règle" : (Number(fee.totalPaid || 0) > 0 ? "Partiel" : "Impayé"),
+        };
+      }
+    } catch {
+      // Ignore if studentFees not populated
+    }
+
+    // 6. Evaluate Gate Decision Status
     const isStatusActive = (student.statut || "Actif").toLowerCase() === "actif";
     let alertLevel: "green" | "yellow" | "red" = isStatusActive ? "green" : "red";
-    let decisionReason = isStatusActive ? "Élève en règle • Accès autorisé" : `Statut élève : ${student.statut}`;
+    let decisionReason = isStatusActive
+      ? (financialStatus.isUpToDate
+          ? "Élève en règle • Accès autorisé"
+          : `Élève actif • Solde restant: ${financialStatus.balance.toLocaleString("fr-FR")} FCFA`)
+      : `Statut élève : ${student.statut}`;
 
     if (student.categorie?.toLowerCase().includes("interne") && !activeExitPermission && action === "exit") {
       alertLevel = "yellow";
       decisionReason = "Élève interne sans bon de sortie validé !";
     }
 
-    // 6. Handle Action logging (Entry / Exit)
-    let actionLogged = null;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const parentPhone = student.whatsapp || student.mobile || student.phoneFixe;
     let whatsappAlert = null;
+
+    if (parentPhone) {
+      let cleanPhone = parentPhone.replace(/\D/g, "");
+      if (cleanPhone.length === 8) cleanPhone = `227${cleanPhone}`;
+      const isExit = action === "exit";
+      const waText = `*${schoolInfo?.name || "CES BOURJA - MARADI"} • SÉCURITÉ CAMPUS* 🛡️\n\nBonjour Cher Parent (${student.nomPere || "Parent d'élève"}),\nNous vous informons que votre enfant *${student.nomEtudiant}* (${student.classe || ""}) a été enregistré au portail de l'établissement (*${isExit ? "Sortie" : "Entrée"}*) à ${timeStr}.\n\n_Plateforme Numérique CES BOURJA • Sécurité certifiée_`;
+      whatsappAlert = {
+        phone: cleanPhone,
+        message: waText,
+        link: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(waText)}`,
+      };
+    }
+
+    // 7. Handle Action logging (Entry / Exit) + Automatic Attendance on Entry
+    let actionLogged = null;
     if (action === "entry" || action === "exit") {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
       actionLogged = {
         action,
         timestamp: now.toISOString(),
@@ -122,11 +172,36 @@ export async function POST(request: NextRequest) {
         note: note || "",
       };
 
-      const parentPhone = student.whatsapp || student.mobile || student.phoneFixe;
       const notifTitle = action === "entry" ? "Arrivée à l'école" : "Départ de l'école";
       const notifContent = `L'élève ${student.nomEtudiant} (Classe: ${student.classe || "N/A"}) a franchi le portail (${action === "entry" ? "Entrée" : "Sortie"}) à ${timeStr}.`;
 
-      // 6a. Push notification to in-app notification center
+      // 7a. Record automatic attendance on entry
+      if (action === "entry") {
+        try {
+          let classId = (student as any).classId || null;
+          if (!classId && student.classe) {
+            const cls = await readDb.query.schoolClasses.findFirst({
+              where: eq(schoolClasses.className, student.classe),
+            });
+            classId = cls?.id || null;
+          }
+          if (classId) {
+            await db.insert(studentAttendance).values({
+              schoolId: student.schoolId || user.schoolId || 2,
+              studentId: student.id,
+              classId,
+              date: now,
+              status: "Présent",
+              remark: `Portail QR (${timeStr})`,
+              recordedBy: user.utilisateur || "Portail QR",
+            });
+          }
+        } catch {
+          // Non-blocking attendance insert
+        }
+      }
+
+      // 7b. Push notification to in-app notification center
       try {
         await db.insert(notifications).values({
           title: notifTitle,
@@ -138,19 +213,6 @@ export async function POST(request: NextRequest) {
       } catch {
         // notification non-blocking
       }
-
-      // 6b. Generate Instant WhatsApp payload & link
-      if (parentPhone) {
-        let cleanPhone = parentPhone.replace(/\D/g, "");
-        if (cleanPhone.length === 8) cleanPhone = `227${cleanPhone}`;
-        const isEntry = action === "entry";
-        const waText = `*SÉCURITÉ CAMPUS - CONTRÔLE D'ACCÈS* 🛡️\n\nBonjour Cher Parent (${student.nomPere || "Parent d'élève"}),\nNous vous informons que votre enfant *${student.nomEtudiant}* (${student.classe || ""}) a franchi le portail de l'établissement (*${isEntry ? "Entrée" : "Sortie"}*) à ${timeStr}.\n\n_Application Edut Mobile • Sécurité certifiée_`;
-        whatsappAlert = {
-          phone: cleanPhone,
-          message: waText,
-          link: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(waText)}`,
-        };
-      }
     }
 
     return NextResponse.json({
@@ -160,6 +222,7 @@ export async function POST(request: NextRequest) {
       decisionReason,
       actionLogged,
       whatsappAlert,
+      financialStatus,
       student: {
         id: student.id,
         nom: student.nomEtudiant,

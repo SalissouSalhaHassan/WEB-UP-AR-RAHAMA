@@ -64,7 +64,7 @@ export function MobileMoneyClient({
 
   // Form States
   const [studentId, setStudentId] = useState<number>(studentsList[0]?.id || 0);
-  const [provider, setProvider] = useState<"AIRTEL_MONEY" | "MOOV_MONEY" | "ORANGE_MONEY" | "WAVE" | "BANK_CARD" | "CINETPAY">("AIRTEL_MONEY");
+  const [provider, setProvider] = useState<string>("MY_NITA");
   const [amount, setAmount] = useState<number>(50000);
   const [phoneNumber, setPhoneNumber] = useState<string>("+227 90 00 00 00");
   const [purpose, setPurpose] = useState<"Scolarité" | "Inscription" | "Mensualité" | "Soutenance PFE" | "COGES">("Scolarité");
@@ -157,10 +157,10 @@ export function MobileMoneyClient({
           remainingBalance: 0,
         },
         institution: {
-          name: "UNIVERSITÉ DES SCIENCES & TECHNOLOGIES",
+          name: "COMPLEXE D'ENSEIGNEMENT SECONDAIRE BOURJA (CES BOURJA)",
           countryName: "RÉPUBLIQUE DU NIGER",
-          ministryName: "MINISTÈRE DE L'ENSEIGNEMENT SUPÉRIEUR ET DE LA RECHERCHE",
-          city: "Niamey",
+          ministryName: "MINISTÈRE DE L'ÉDUCATION NATIONALE, DE L'ALPHABÉTISATION ET DE LA PROMOTION DES LANGUES",
+          city: "Maradi",
         },
       };
 
@@ -173,26 +173,33 @@ export function MobileMoneyClient({
 
   const handleShareWhatsApp = (t: any) => {
     const text = encodeURIComponent(
-      `🏛️ *REÇU DE PAIEMENT NUMÉRIQUE EDUT*\n\n` +
-      `👤 *Étudiant :* ${t.studentNom || "Étudiant"}\n` +
+      `🏛️ *REÇU DE PAIEMENT NUMÉRIQUE — CES BOURJA MARADI*\n\n` +
+      `👤 *Élève :* ${t.studentNom || "Élève"}\n` +
       `🔢 *Matricule :* ${t.studentMatricule || "N/A"}\n` +
       `💰 *Montant :* ${Number(t.amount).toLocaleString()} FCFA\n` +
       `📲 *Canal :* ${t.provider.replace("_", " ")}\n` +
       `📑 *Motif :* ${t.purpose}\n` +
       `🔖 *Réf :* ${t.transactionReference}\n\n` +
-      `🔗 *Vérifier l'authenticité :* ${typeof window !== "undefined" ? window.location.origin : "https://niger.edut.pro"}/verify/${encodeURIComponent(t.transactionReference)}`
+      `🔗 *Vérifier l'authenticité :* ${typeof window !== "undefined" ? window.location.origin : "https://web-ces-bourja.vercel.app"}/verify/${encodeURIComponent(t.transactionReference)}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
   };
 
   const getProviderBadge = (p: string) => {
     switch (p) {
+      case "MY_NITA":
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">MyNita 🇳🇪</span>;
+      case "AMANATA":
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">AmanaTa 🇳🇪</span>;
+      case "AL_IZZA":
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-teal-50 text-teal-700 border border-teal-200">Al-Izza 🇳🇪</span>;
       case "AIRTEL_MONEY":
-        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">Airtel Money</span>;
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">Airtel Money 🇳🇪</span>;
       case "MOOV_MONEY":
-        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">Moov Money</span>;
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">Moov Money 🇳🇪</span>;
+      case "ZAMANI_CASH":
       case "ORANGE_MONEY":
-        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-200">Orange Money</span>;
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-200">Zamani Cash 🇳🇪</span>;
       case "WAVE":
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-cyan-50 text-cyan-700 border border-cyan-200">Wave</span>;
       case "BANK_CARD":
@@ -514,12 +521,12 @@ export function MobileMoneyClient({
                   <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase mb-1.5">Opérateur / Canal de Paiement *</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: "AIRTEL_MONEY", label: "Airtel Money", color: "border-rose-300 text-rose-700" },
-                      { id: "MOOV_MONEY", label: "Moov Money", color: "border-blue-300 text-blue-700" },
-                      { id: "ORANGE_MONEY", label: "Orange Money", color: "border-orange-300 text-orange-700" },
-                      { id: "WAVE", label: "Wave", color: "border-cyan-300 text-cyan-700" },
-                      { id: "BANK_CARD", label: "GIM / Carte", color: "border-indigo-300 text-indigo-700" },
-                      { id: "CINETPAY", label: "Passerelle Web", color: "border-purple-300 text-purple-700" },
+                      { id: "MY_NITA", label: "MyNita 🇳🇪", color: "border-emerald-300 text-emerald-700" },
+                      { id: "AMANATA", label: "AmanaTa 🇳🇪", color: "border-amber-300 text-amber-700" },
+                      { id: "AL_IZZA", label: "Al-Izza 🇳🇪", color: "border-teal-300 text-teal-700" },
+                      { id: "AIRTEL_MONEY", label: "Airtel Money 🇳🇪", color: "border-rose-300 text-rose-700" },
+                      { id: "MOOV_MONEY", label: "Moov (Flooz) 🇳🇪", color: "border-blue-300 text-blue-700" },
+                      { id: "ZAMANI_CASH", label: "Zamani Cash 🇳🇪", color: "border-orange-300 text-orange-700" },
                     ].map((op) => (
                       <button
                         key={op.id}

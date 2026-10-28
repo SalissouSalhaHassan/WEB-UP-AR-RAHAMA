@@ -364,11 +364,16 @@ export default function PaymentDialog({
                     className="w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-4 h-14 text-sm font-bold text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-indigo-500/10"
                   >
                     <option value="Espèces">Espèces (Cash)</option>
-                    <option value="Mobile Money">Mobile Money</option>
+                    <option value="MyNita (Nita Transfert)">MyNita (Nita Transfert) 🇳🇪</option>
+                    <option value="AmanaTa Transfert">AmanaTa Transfert 🇳🇪</option>
+                    <option value="Al-Izza Transfert">Al-Izza Transfert 🇳🇪</option>
+                    <option value="Airtel Money">Airtel Money 🇳🇪</option>
+                    <option value="Moov Money (Flooz)">Moov Money (Flooz) 🇳🇪</option>
+                    <option value="Zamani Cash">Zamani Cash 🇳🇪</option>
+                    <option value="Mobile Money">Mobile Money (Autre)</option>
                     <option value="Virement">Virement Bancaire</option>
                     <option value="Chèque">Chèque</option>
                     <option value="Carte Bancaire">Carte Bancaire</option>
-                    <option value="Paiement Électronique">Paiement Électronique</option>
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                 </div>

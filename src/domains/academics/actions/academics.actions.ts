@@ -4585,3 +4585,294 @@ export async function getStudentPersonalGradesAction(params?: { period?: string;
   };
 }
 
+
+export async function initializeOfficialNigerCurriculum() {
+  return protectedDbAction("Academics", "canEdit", async (user) => {
+    const schoolId = (await getActiveSchoolId()) || user?.schoolId || 2;
+
+    // 1. Ensure Educational Levels (Collège & Lycée)
+    const targetLevels = ["Collège", "Lycée"];
+    for (const levelName of targetLevels) {
+      const existing = await db.query.educationalLevels.findFirst({
+        where: and(
+          eq(educationalLevels.schoolId, schoolId),
+          ilike(educationalLevels.levelName, levelName)
+        ),
+      });
+      if (!existing) {
+        await db.insert(educationalLevels).values({ schoolId, levelName });
+      }
+    }
+
+    // 2. Ensure Official Sections (Premier Cycle Collège + Second Cycle Séries A, C, D)
+    const sectionDefs = [
+      {
+        sectionName: "Premier Cycle (Collège)",
+        educationalLevel: "Collège",
+        series: "Général",
+        numTerms: 2,
+        termLabels: "1er Semestre, 2ème Semestre",
+        minPassingGrade: 10.0,
+        redoublementThreshold: 8.0,
+        exclusionThreshold: 5.0,
+        classes: ["6ème A", "6ème B", "5ème A", "5ème B", "4ème A", "4ème B", "3ème A", "3ème B"],
+        coefs: {
+          "Français": 3,
+          "Mathématiques": 3,
+          "Physique-Chimie (PC)": 2,
+          "Sciences de la Vie et de la Terre (SVT)": 2,
+          "Anglais": 2,
+          "Histoire-Géographie": 2,
+          "Éducation Civique et Morale (ECM)": 1,
+          "Éducation Physique et Sportive (EPS)": 1,
+          "Arabe": 2,
+          "Économie Familiale et Sociale (EFS)": 1,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Second Cycle - Série A (Littéraire)",
+        educationalLevel: "Lycée",
+        series: "A",
+        numTerms: 2,
+        termLabels: "1er Semestre, 2ème Semestre",
+        minPassingGrade: 10.0,
+        redoublementThreshold: 8.0,
+        exclusionThreshold: 5.0,
+        classes: ["2nde A", "1ère A", "Terminale A"],
+        coefs: {
+          "Français": 4,
+          "Philosophie": 4,
+          "Histoire-Géographie": 3,
+          "Anglais": 3,
+          "Arabe": 3,
+          "Mathématiques": 2,
+          "Sciences de la Vie et de la Terre (SVT)": 1,
+          "Éducation Civique et Morale (ECM)": 1,
+          "Éducation Physique et Sportive (EPS)": 1,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Second Cycle - Série D (Scientifique SVT)",
+        educationalLevel: "Lycée",
+        series: "D",
+        numTerms: 2,
+        termLabels: "1er Semestre, 2ème Semestre",
+        minPassingGrade: 10.0,
+        redoublementThreshold: 8.0,
+        exclusionThreshold: 5.0,
+        classes: ["2nde C", "1ère D", "Terminale D"],
+        coefs: {
+          "Mathématiques": 4,
+          "Physique-Chimie (PC)": 4,
+          "Sciences de la Vie et de la Terre (SVT)": 4,
+          "Français": 3,
+          "Philosophie": 2,
+          "Histoire-Géographie": 2,
+          "Anglais": 2,
+          "Éducation Civique et Morale (ECM)": 1,
+          "Éducation Physique et Sportive (EPS)": 1,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Second Cycle - Série C (Mathématiques & Physique)",
+        educationalLevel: "Lycée",
+        series: "C",
+        numTerms: 2,
+        termLabels: "1er Semestre, 2ème Semestre",
+        minPassingGrade: 10.0,
+        redoublementThreshold: 8.0,
+        exclusionThreshold: 5.0,
+        classes: ["1ère C", "Terminale C"],
+        coefs: {
+          "Mathématiques": 5,
+          "Physique-Chimie (PC)": 5,
+          "Sciences de la Vie et de la Terre (SVT)": 2,
+          "Français": 3,
+          "Philosophie": 2,
+          "Histoire-Géographie": 2,
+          "Anglais": 2,
+          "Éducation Civique et Morale (ECM)": 1,
+          "Éducation Physique et Sportive (EPS)": 1,
+        } as Record<string, number>,
+      },
+    ];
+
+    // 3. Ensure Official Subjects
+    const subjectDefs = [
+      { subjectName: "Français", subjectCode: "FR", category: "Littéraire" },
+      { subjectName: "Mathématiques", subjectCode: "MATH", category: "Scientifique" },
+      { subjectName: "Physique-Chimie (PC)", subjectCode: "PC", category: "Scientifique" },
+      { subjectName: "Sciences de la Vie et de la Terre (SVT)", subjectCode: "SVT", category: "Scientifique" },
+      { subjectName: "Anglais", subjectCode: "ANG", category: "Langues" },
+      { subjectName: "Histoire-Géographie", subjectCode: "HG", category: "Sciences Humaines" },
+      { subjectName: "Philosophie", subjectCode: "PHILO", category: "Littéraire" },
+      { subjectName: "Éducation Civique et Morale (ECM)", subjectCode: "ECM", category: "Citoyenneté" },
+      { subjectName: "Éducation Physique et Sportive (EPS)", subjectCode: "EPS", category: "Sport" },
+      { subjectName: "Arabe", subjectCode: "AR", category: "Langues" },
+      { subjectName: "Économie Familiale et Sociale (EFS)", subjectCode: "EFS", category: "Pratique" },
+      { subjectName: "Informatique", subjectCode: "INFO", category: "Scientifique" },
+    ];
+
+    const subjectIdByName = new Map<string, number>();
+    for (const sub of subjectDefs) {
+      let existingSub = await db.query.schoolSubjects.findFirst({
+        where: and(
+          eq(schoolSubjects.schoolId, schoolId),
+          ilike(schoolSubjects.subjectName, sub.subjectName)
+        ),
+      });
+      if (!existingSub) {
+        const [insertedSub] = await db.insert(schoolSubjects).values({
+          schoolId,
+          subjectName: sub.subjectName,
+          subjectCode: sub.subjectCode,
+          category: sub.category,
+        }).returning();
+        existingSub = insertedSub;
+      }
+      if (existingSub) {
+        subjectIdByName.set(sub.subjectName, existingSub.id);
+      }
+    }
+
+    // 4. Create Sections, Classes, and Section/Class Subject Coefficients
+    let firstSectionId: number | null = null;
+    for (const secDef of sectionDefs) {
+      let sec = await db.query.schoolSections.findFirst({
+        where: and(
+          eq(schoolSections.schoolId, schoolId),
+          ilike(schoolSections.sectionName, secDef.sectionName)
+        ),
+      });
+      if (!sec) {
+        const [insertedSec] = await db.insert(schoolSections).values({
+          schoolId,
+          sectionName: secDef.sectionName,
+          educationalLevel: secDef.educationalLevel,
+          series: secDef.series,
+          numTerms: secDef.numTerms,
+          termLabels: secDef.termLabels,
+          minPassingGrade: secDef.minPassingGrade,
+          redoublementThreshold: secDef.redoublementThreshold,
+          exclusionThreshold: secDef.exclusionThreshold,
+        }).returning();
+        sec = insertedSec;
+      }
+      if (!sec) continue;
+      if (!firstSectionId) firstSectionId = sec.id;
+
+      for (const [subName, coef] of Object.entries(secDef.coefs)) {
+        const subId = subjectIdByName.get(subName);
+        if (!subId) continue;
+        const existingSecSub = await db.query.sectionSubjects.findFirst({
+          where: and(
+            eq(sectionSubjects.sectionId, sec.id),
+            eq(sectionSubjects.subjectId, subId)
+          ),
+        });
+        if (!existingSecSub) {
+          await db.insert(sectionSubjects).values({
+            sectionId: sec.id,
+            subjectId: subId,
+            term: "Tous",
+            defaultCoef: coef,
+          });
+        }
+      }
+
+      for (const clsName of secDef.classes) {
+        let cls = await db.query.schoolClasses.findFirst({
+          where: and(
+            eq(schoolClasses.schoolId, schoolId),
+            ilike(schoolClasses.className, clsName)
+          ),
+        });
+        if (!cls) {
+          const [insertedCls] = await db.insert(schoolClasses).values({
+            schoolId,
+            className: clsName,
+            sectionId: sec.id,
+            roomName: `Salle ${clsName}`,
+          }).returning();
+          cls = insertedCls;
+        }
+        if (cls) {
+          for (const [subName, coef] of Object.entries(secDef.coefs)) {
+            const subId = subjectIdByName.get(subName);
+            if (!subId) continue;
+            const existingClsSub = await db.query.classSubjects.findFirst({
+              where: and(
+                eq(classSubjects.schoolId, schoolId),
+                eq(classSubjects.classId, cls.id),
+                eq(classSubjects.subjectId, subId)
+              ),
+            });
+            if (!existingClsSub) {
+              await db.insert(classSubjects).values({
+                schoolId,
+                classId: cls.id,
+                subjectId: subId,
+                coefficient: coef,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Ensure Grading Appreciations
+    const defaultAppreciations = [
+      { name: "Excellent", baseScore: 18, displayOrder: 1 },
+      { name: "Très Bien", baseScore: 16, displayOrder: 2 },
+      { name: "Bien", baseScore: 14, displayOrder: 3 },
+      { name: "Assez Bien", baseScore: 12, displayOrder: 4 },
+      { name: "Passable", baseScore: 10, displayOrder: 5 },
+      { name: "Insuffisant", baseScore: 8, displayOrder: 6 },
+      { name: "Faible", baseScore: 5, displayOrder: 7 },
+      { name: "Très Faible", baseScore: 0, displayOrder: 8 },
+    ];
+    for (const app of defaultAppreciations) {
+      const existingApp = await db.query.gradingAppreciations.findFirst({
+        where: ilike(gradingAppreciations.name, app.name),
+      });
+      if (!existingApp) {
+        await db.insert(gradingAppreciations).values(app).catch(() => {});
+      }
+    }
+
+    // 6. Ensure Council Remarks
+    if (firstSectionId) {
+      const defaultRemarks = [
+        { category: "Honneur", content: "Tableau d'Honneur + Félicitations", score: 16, displayOrder: 1 },
+        { category: "Honneur", content: "Tableau d'Honneur + Encouragements", score: 14, displayOrder: 2 },
+        { category: "Honneur", content: "Tableau d'Honneur (TH)", score: 12, displayOrder: 3 },
+        { category: "Conduite", content: "Travail passable, peut mieux faire", score: 10, displayOrder: 4 },
+        { category: "Discipline", content: "Avertissement Travail", score: 7, displayOrder: 5 },
+        { category: "Discipline", content: "Blâme Conduite / Travail", score: 5, displayOrder: 6 },
+      ];
+      for (const rem of defaultRemarks) {
+        const existingRem = await db.query.schoolRemarks.findFirst({
+          where: and(
+            eq(schoolRemarks.sectionId, firstSectionId),
+            ilike(schoolRemarks.content, rem.content)
+          ),
+        });
+        if (!existingRem) {
+          await db.insert(schoolRemarks).values({
+            ...rem,
+            sectionId: firstSectionId,
+            isChecked: true,
+          }).catch(() => {});
+        }
+      }
+    }
+
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/academics");
+    revalidateTag(ACADEMICS_CACHE_TAG);
+    return {
+      success: true,
+      message: "Programme officiel du Niger (Collège & Lycée, Classes, Matières et Coefficients) initialisé avec succès !",
+    };
+  });
+}

@@ -890,6 +890,68 @@ function ReportsDashboardContent({ unifiedData: initialData, branding, currentUs
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const handleExportExamCandidates = (examType: "BEPC" | "BAC") => {
+    const allStudents = data.students || [];
+    const candidates = allStudents.filter((s: any) => {
+      const cls = String(s?.classe || s?.class?.className || "").toLowerCase();
+      if (examType === "BEPC") {
+        return cls.includes("3ème") || cls.includes("3eme") || cls.includes("3e") || cls.includes("troisi");
+      }
+      return cls.includes("terminale") || cls.includes("tle") || cls.startsWith("t ") || cls.includes("bac");
+    });
+
+    const targetList = candidates.length > 0 ? candidates : allStudents;
+    const headers = [
+      "N° Ordre",
+      "Matricule National / Admission",
+      "Nom & Prénom",
+      "Sexe",
+      "Date de Naissance",
+      "Lieu de Naissance",
+      "Classe / Série",
+      "Examen Officiel",
+      "Établissement",
+      "Direction Régionale (DREN)",
+      "Téléphone Tuteur",
+      "Statut Candidature"
+    ];
+
+    const rows = targetList.map((s: any, idx: number) => [
+      String(idx + 1),
+      s.numAdmission || s.matricule || `MAT-${s.id}`,
+      s.nomPrenom || "-",
+      s.sexe || "-",
+      s.dateNaissance ? new Date(s.dateNaissance).toLocaleDateString("fr-FR") : "-",
+      s.lieuNaissance || "Maradi",
+      s.classe || s.class?.className || (examType === "BEPC" ? "3ème" : "Terminale"),
+      examType === "BEPC" ? "BEPC (Fin du 1er Cycle)" : "BACCALAURÉAT (Fin du 2nd Cycle)",
+      branding.name || "CES BOURJA Maradi",
+      "DREN MARADI",
+      s.telTuteur || s.telephone || "-",
+      "Candidat Officiel Régulier"
+    ]);
+
+    const csvContent =
+      "\uFEFF" +
+      [headers, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(";"))
+        .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Liste_Officielle_Candidats_${examType}_CES_BOURJA_Maradi_${academicYear === "All" ? "2025-2026" : academicYear}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      `Fichier officiel DREN Maradi (${examType}) exporté avec succès (${targetList.length} candidats) !`
+    );
+  };
+
   const universalMetadata = {
     title: getReportTitle(activeReport),
     subtitle: `Période : ${activePeriodName} | Année scolaire : ${academicYear === "All" ? "Toutes" : academicYear}`,
@@ -933,7 +995,25 @@ function ReportsDashboardContent({ unifiedData: initialData, branding, currentUs
         </div>
 
         {/* Actions & Offline Status */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => handleExportExamCandidates("BEPC")}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+            title="Exporter la liste officielle des candidats au BEPC (3ème) pour la DREN de Maradi"
+          >
+            <Download size={15} />
+            Export BEPC (3ème)
+          </button>
+
+          <button
+            onClick={() => handleExportExamCandidates("BAC")}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+            title="Exporter la liste officielle des candidats au BAC (Terminale A/C/D) pour la DREN de Maradi"
+          >
+            <Download size={15} />
+            Export BAC (Tle)
+          </button>
+
           <button
             onClick={handleGenerateAISummary}
             disabled={isGeneratingAISummary}
@@ -1034,12 +1114,15 @@ function ReportsDashboardContent({ unifiedData: initialData, branding, currentUs
                   className={fSel}
                 >
                   <option value="All">Toutes</option>
+                  <option value="Maradi I">Maradi I (IESG Maradi)</option>
+                  <option value="Maradi II">Maradi II</option>
+                  <option value="Maradi III">Maradi III</option>
+                  <option value="Madarounfa I">Madarounfa I</option>
                   <option value="Niamey I">Niamey I</option>
                   <option value="Niamey II">Niamey II</option>
                   <option value="Niamey III">Niamey III</option>
                   <option value="Niamey IV">Niamey IV</option>
                   <option value="Kollo I">Kollo I</option>
-                  <option value="Madarounfa I">Madarounfa I</option>
                   <option value="Mirriah I">Mirriah I</option>
                 </select>
               </div>
@@ -1052,13 +1135,16 @@ function ReportsDashboardContent({ unifiedData: initialData, branding, currentUs
                   className={fSel}
                 >
                   <option value="All">Toutes</option>
+                  <option value="Maradi I">Maradi I</option>
+                  <option value="Maradi II">Maradi II</option>
+                  <option value="Maradi III">Maradi III</option>
+                  <option value="Madarounfa">Madarounfa</option>
                   <option value="Niamey I">Niamey I</option>
                   <option value="Niamey II">Niamey II</option>
                   <option value="Niamey III">Niamey III</option>
                   <option value="Niamey IV">Niamey IV</option>
                   <option value="Niamey V">Niamey V</option>
                   <option value="Kollo">Kollo</option>
-                  <option value="Madarounfa">Madarounfa</option>
                   <option value="Mirriah">Mirriah</option>
                 </select>
               </div>
@@ -1071,13 +1157,14 @@ function ReportsDashboardContent({ unifiedData: initialData, branding, currentUs
                   className={fSel}
                 >
                   <option value="All">Tous</option>
+                  <option value="CES BOURJA Maradi">CES BOURJA Maradi</option>
+                  <option value="Lycée Technique Maradi">Lycée Technique Maradi</option>
                   <option value="Ecole Excellence">Ecole Excellence</option>
                   <option value="Ecole Primaire Bobiel">Ecole Primaire Bobiel</option>
                   <option value="Complexe Scolaire Sahel">Complexe Scolaire Sahel</option>
                   <option value="Ecole Publique Lazaret">Ecole Publique Lazaret</option>
                   <option value="Lycee Municipal Est">Lycee Municipal Est</option>
                   <option value="CES Kollo">CES Kollo</option>
-                  <option value="Lycée Technique Maradi">Lycée Technique Maradi</option>
                 </select>
               </div>
 

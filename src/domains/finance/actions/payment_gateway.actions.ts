@@ -70,7 +70,7 @@ export interface InitiatePaymentParams {
   studentId?: number;
   feeId?: number;
   amount: number;
-  provider: "AIRTEL_MONEY" | "MOOV_MONEY" | "FLOOZ" | "ORANGE_MONEY" | "WAVE" | "NITA" | "BANK_CARD" | "CINETPAY";
+  provider: "MY_NITA" | "AMANATA" | "AL_IZZA" | "ZAMANI_CASH" | "AIRTEL_MONEY" | "MOOV_MONEY" | "FLOOZ" | "ORANGE_MONEY" | "WAVE" | "NITA" | "BANK_CARD" | "CINETPAY" | string;
   phoneNumber?: string;
   purpose: "Scolarité" | "Inscription" | "Mensualité" | "COGES" | "Soutenance PFE" | "Autre";
 }
