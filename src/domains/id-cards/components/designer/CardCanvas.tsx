@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CardElement, CardSize, Orientation, CARD_DIMENSIONS } from "./types";
+import { QRCodeSVG } from "qrcode.react";
 import {
   RotateCw, Lock, EyeOff, QrCode, Barcode, ShieldCheck, User, Building2, MapPin, Phone, Mail, Calendar,
   Globe, Smartphone, Send, GraduationCap, BookOpen, LibraryBig, Award, Bookmark, Medal, ShieldAlert,
@@ -259,17 +260,38 @@ export default function CardCanvas({
             else if (el.variableKey === "{{blood_type}}") contentStr = activeStudent?.groupeSanguin || "O+";
             else if (el.variableKey === "{{phone}}") contentStr = activeStudent?.telephone || "+227 90 00 00 00";
             else if (el.variableKey === "{{guardian}}") contentStr = activeStudent?.tuteur || "M. Sow Ibrahim";
-            else if (el.variableKey === "{{address}}") contentStr = activeStudent?.adresse || "Quartier Plateau, Niamey";
-            else if (el.variableKey === "{{school_name}}") contentStr = activeBranch?.nomBranch || activeBranch?.name || "ÉCOLE GESTION PRO";
+            else if (el.variableKey === "{{address}}") contentStr = activeStudent?.adresse || "Maradi, République du Niger";
+            else if (el.variableKey === "{{school_name}}") {
+              const rawBranchName = activeBranch?.nomBranch || activeBranch?.branchName || activeBranch?.name || "";
+              const isGeneric = !rawBranchName || rawBranchName.toLowerCase().includes("école gestion") || rawBranchName.toLowerCase().includes("ecole gestion") || rawBranchName.toLowerCase().includes("main") || rawBranchName.toLowerCase().includes("principal");
+              let cachedSchoolName = "";
+              if (typeof window !== "undefined") {
+                try {
+                  const u = JSON.parse(localStorage.getItem("edut_user_session") || "{}");
+                  cachedSchoolName = u?.school?.name || "";
+                } catch {}
+              }
+              contentStr = (!isGeneric ? rawBranchName : cachedSchoolName) || "CES BOURJA MARADI";
+            }
             else if (el.variableKey === "{{academic_year}}") contentStr = "2025-2026";
-            else if (el.variableKey === "{{director}}") contentStr = activeBranch?.directorName || "M. le Proviseur";
-            else if (el.variableKey === "{{school_phone}}") contentStr = activeBranch?.telephone || "+227 20 00 00 00";
-            else if (el.variableKey === "{{school_email}}") contentStr = activeBranch?.email || "contact@ecole-edut.ne";
-            else if (el.variableKey === "{{issue_date}}") contentStr = "01/10/2025";
-            else if (el.variableKey === "{{expiry_date}}") contentStr = "30/06/2026";
-            else if (el.variableKey === "{{status_badge}}") contentStr = "ÉLÈVE INSCRIT";
-            else if (el.variableKey === "{{qr_code}}") contentStr = activeStudent?.numAdmission ? `VERIFIED-${activeStudent.numAdmission}` : "EDUT-CARD-VERIFIED";
-            else if (el.variableKey === "{{barcode}}") contentStr = activeStudent?.numAdmission || "EDUT-100482";
+            else if (el.variableKey === "{{director}}") contentStr = activeBranch?.directorName || "Le Directeur Général";
+            else if (el.variableKey === "{{school_phone}}") contentStr = activeBranch?.telephone || activeBranch?.contactNo || "+227 90 00 00 00";
+            else if (el.variableKey === "{{school_email}}") contentStr = activeBranch?.email || "contact@ces-bourja.ne";
+            else if (el.variableKey === "{{issue_date}}") contentStr = new Date().toLocaleDateString("fr-FR");
+            else if (el.variableKey === "{{expiry_date}}") contentStr = "31/07/2026";
+            else if (el.variableKey === "{{status_badge}}") contentStr = "ÉLÈVE RÉGULIER";
+            else if (el.variableKey === "{{qr_code}}") {
+              contentStr = activeStudent
+                ? JSON.stringify({
+                    type: "student_pass",
+                    student_id: activeStudent.id,
+                    num_admission: activeStudent.numAdmission || `ID-${activeStudent.id}`,
+                    nom_etudiant: `${activeStudent.nomEtudiant || ""} ${activeStudent.prenomEtudiant || ""}`.trim(),
+                    classe: activeStudent.classe || "",
+                  })
+                : "EDUT-CARD-VERIFIED";
+            }
+            else if (el.variableKey === "{{barcode}}") contentStr = activeStudent?.numAdmission || "BRJ-2027-0001";
           }
 
           let rawPhoto = activeStudent?.photoPath || el.src;
@@ -377,14 +399,30 @@ export default function CardCanvas({
                     className="w-full h-full"
                   />
                 ) : el.type === "qrcode" ? (
-                  <div className="w-full h-full bg-slate-900 text-white flex flex-col items-center justify-center rounded p-1">
-                    <QrCode size={20 * scale} />
-                    <span className="text-[6px] font-mono tracking-tighter truncate mt-0.5">{contentStr || "EDUT-QR"}</span>
+                  <div className="w-full h-full bg-white border border-slate-200 flex flex-col items-center justify-center rounded-lg p-1 shadow-sm">
+                    <QRCodeSVG
+                      value={contentStr || "EDUT-QR"}
+                      size={Math.max(18, Math.min(el.width, el.height) * scale - 8 * scale)}
+                      level="M"
+                    />
                   </div>
                 ) : el.type === "barcode" ? (
-                  <div className="w-full h-full bg-white border border-slate-300 flex flex-col items-center justify-center p-1">
-                    <Barcode size={22 * scale} />
-                    <span className="text-[6px] font-mono tracking-tighter">{contentStr || "EDUT-BC"}</span>
+                  <div className="w-full h-full bg-white/95 border border-slate-200 rounded-md flex flex-col items-center justify-center px-1.5 py-0.5">
+                    <div className="w-full flex items-center justify-between gap-[1px] h-[65%] overflow-hidden">
+                      {Array.from({ length: 34 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            width: idx % 4 === 0 ? 2.5 * scale : idx % 2 === 0 ? 1.5 * scale : 1 * scale,
+                            height: "100%",
+                            backgroundColor: "#0f172a",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[6.5px] font-mono font-bold tracking-widest text-slate-800 truncate mt-0.5">
+                      {contentStr || "BRJ-2027-0001"}
+                    </span>
                   </div>
                 ) : el.type === "icon" ? (
                   <div className="flex items-center justify-center w-full h-full text-indigo-600">

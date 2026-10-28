@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { CardElementType, DYNAMIC_CARD_FIELDS } from "./types";
+import { SMART_CARD_PRESETS, SmartCardPreset } from "./cardSmartPresets";
 import {
   Type, UserCheck, Sparkles, Image as ImageIcon, QrCode, Barcode,
   Stamp, Square, Circle, Minus, Plus, Search, Variable,
   Phone, Mail, MapPin, Building2, Calendar, User, ShieldCheck,
   Globe, Smartphone, Send, GraduationCap, BookOpen, LibraryBig, Award, Bookmark, Medal,
   ShieldAlert, Fingerprint, Lock, Key, BadgeCheck, CheckCircle2, Clock, History, Star, Heart,
-  AlertCircle, Info, Hash, Layout, Tag, Shield
+  AlertCircle, Info, Hash, Layout, Tag, Shield, Palette, Wand2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface CardLeftSidebarProps {
   onAddElement: (type: CardElementType, customProps?: any) => void;
+  onApplyPreset?: (preset: SmartCardPreset) => void;
+  activeTemplateName?: string;
 }
 
 const ICON_CATALOG = [
@@ -60,8 +63,8 @@ const ICON_CATALOG = [
   ]},
 ];
 
-export default function CardLeftSidebar({ onAddElement }: CardLeftSidebarProps) {
-  const [activeTab, setActiveTab] = useState<"library" | "tokens" | "icons">("library");
+export default function CardLeftSidebar({ onAddElement, onApplyPreset, activeTemplateName }: CardLeftSidebarProps) {
+  const [activeTab, setActiveTab] = useState<"templates" | "library" | "tokens" | "icons">("templates");
   const [searchToken, setSearchToken] = useState("");
   const [searchIcon, setSearchIcon] = useState("");
 
@@ -72,37 +75,117 @@ export default function CardLeftSidebar({ onAddElement }: CardLeftSidebarProps) 
   );
 
   return (
-    <aside className="w-72 bg-white dark:bg-[#131622] border-r border-slate-200 dark:border-slate-800 flex flex-col h-full z-20 shadow-sm text-slate-900 dark:text-slate-100 select-none">
+    <aside className="w-76 bg-white dark:bg-[#131622] border-r border-slate-200 dark:border-slate-800 flex flex-col h-full z-20 shadow-sm text-slate-900 dark:text-slate-100 select-none">
       {/* Tab Switcher */}
-      <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-1">
+      <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 grid grid-cols-4 gap-1">
+        <button
+          onClick={() => setActiveTab("templates")}
+          className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight flex items-center justify-center gap-1 transition cursor-pointer ${
+            activeTab === "templates" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+          }`}
+        >
+          <Palette size={12} /> Modèles
+        </button>
         <button
           onClick={() => setActiveTab("library")}
-          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+          className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight flex items-center justify-center gap-1 transition cursor-pointer ${
             activeTab === "library" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           }`}
         >
-          <Sparkles size={13} /> Éléments
+          <Sparkles size={12} /> Éléments
         </button>
         <button
           onClick={() => setActiveTab("tokens")}
-          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+          className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight flex items-center justify-center gap-1 transition cursor-pointer ${
             activeTab === "tokens" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           }`}
         >
-          <Variable size={13} /> Variables
+          <Variable size={12} /> Variables
         </button>
         <button
           onClick={() => setActiveTab("icons")}
-          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+          className={`py-2 px-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight flex items-center justify-center gap-1 transition cursor-pointer ${
             activeTab === "icons" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           }`}
         >
-          <User size={13} /> Icônes
+          <User size={12} /> Icônes
         </button>
       </div>
 
-      {/* Main Library Elements */}
-      {activeTab === "library" ? (
+      {/* Tab 0: Smart Card Templates Gallery */}
+      {activeTab === "templates" ? (
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+              <Wand2 size={13} /> Modèles Intelligents HD
+            </p>
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              {SMART_CARD_PRESETS.length} Pro
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {SMART_CARD_PRESETS.map((preset) => {
+              const isCurrent = activeTemplateName === preset.name;
+              return (
+                <div
+                  key={preset.id}
+                  onClick={() => onApplyPreset?.(preset)}
+                  className={`group rounded-2xl border p-3 transition-all cursor-pointer relative overflow-hidden ${
+                    isCurrent
+                      ? "border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50 shadow-md"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:border-indigo-400 dark:hover:border-indigo-700 hover:shadow-md"
+                  }`}
+                >
+                  {/* Visual Mini Card Preview Banner */}
+                  <div
+                    style={{ backgroundImage: preset.previewGradient }}
+                    className="h-20 rounded-xl p-2.5 flex flex-col justify-between text-white shadow-inner relative overflow-hidden mb-2.5"
+                  >
+                    <div className="flex items-center justify-between z-10">
+                      <span className="text-[8px] font-black uppercase tracking-wider bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-md border border-white/15">
+                        {preset.cardType} • {preset.orientation === "landscape" ? "Paysage" : "Vertical"}
+                      </span>
+                      <span className="text-[9px] font-black bg-white/95 text-slate-900 px-2 py-0.5 rounded-full shadow">
+                        {preset.badge}
+                      </span>
+                    </div>
+
+                    <div className="flex items-end justify-between z-10">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-8 rounded-md bg-white/25 border border-white/50 flex items-center justify-center text-[9px] font-black">
+                          ID
+                        </div>
+                        <div>
+                          <div className="h-2 w-20 bg-white/90 rounded-full mb-1" />
+                          <div className="h-1.5 w-14 bg-amber-300/90 rounded-full" />
+                        </div>
+                      </div>
+                      <div className="w-7 h-7 rounded bg-white p-0.5 flex items-center justify-center text-slate-900">
+                        <QrCode size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
+                      {preset.name}
+                    </h4>
+                    {isCurrent && (
+                      <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Actif
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    {preset.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : activeTab === "library" ? (
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Section: Photos & Logos */}
           <div>

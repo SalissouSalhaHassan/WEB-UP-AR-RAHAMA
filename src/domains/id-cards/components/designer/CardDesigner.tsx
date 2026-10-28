@@ -13,6 +13,7 @@ import { saveCardTemplate, getCardTemplates, deleteCardTemplate } from "@/domain
 import { getBranches } from "@/domains/settings/actions/settings.actions";
 import { getStudents } from "@/domains/students/actions/students.actions";
 import { CardElement } from "./types";
+import { SMART_CARD_PRESETS, SmartCardPreset } from "./cardSmartPresets";
 import { Users, Search, Printer, Check, X, Shield, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -252,12 +253,23 @@ export default function CardDesigner({
     canUndo,
     canRedo,
   } = useCardTemplateStore({
-    rectoElements: DEFAULT_RECTO_CARD_ELEMENTS,
-    versoElements: [],
-    cardType: "CR80",
-    orientation: "landscape",
-    templateName: "Carte Élève CR80 Officielle",
+    rectoElements: SMART_CARD_PRESETS[0].rectoElements,
+    versoElements: SMART_CARD_PRESETS[0].versoElements,
+    cardType: SMART_CARD_PRESETS[0].cardType,
+    orientation: SMART_CARD_PRESETS[0].orientation,
+    templateName: SMART_CARD_PRESETS[0].name,
   });
+
+  const handleApplyPreset = (preset: SmartCardPreset) => {
+    loadCardDesign({
+      rectoElements: preset.rectoElements,
+      versoElements: preset.versoElements,
+      cardType: preset.cardType,
+      orientation: preset.orientation,
+      templateName: preset.name,
+    });
+    toast.success(`Modèle intelligent "${preset.name}" appliqué avec succès !`);
+  };
 
   useEffect(() => {
     getStudents().then((res: any) => {
@@ -386,11 +398,16 @@ export default function CardDesigner({
         students={effectiveStudents}
         previewStudentId={effectivePreviewId}
         onPreviewStudentChange={handlePreviewStudentChange}
+        onApplyPreset={handleApplyPreset}
       />
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden relative">
-        <CardLeftSidebar onAddElement={addElement} />
+        <CardLeftSidebar
+          onAddElement={addElement}
+          onApplyPreset={handleApplyPreset}
+          activeTemplateName={templateName}
+        />
 
         <div className="flex-1 flex flex-col overflow-hidden relative">
           <CardCanvas

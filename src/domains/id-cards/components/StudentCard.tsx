@@ -65,9 +65,11 @@ export const StudentCard: React.FC<StudentCardProps> = ({
     }
   }, [student.educationalLevel]);
 
-  const schoolName = branchInfo?.branchName || propSchoolName || "UNIVERSITÉ ABOUBACAR IBRAHIM";
-  const contactNo = branchInfo?.contactNo || "+227 20 72 35 35";
-  const website = branchInfo?.branchAlias || "www.uabi.ne"; // Using branchAlias for website as fallback
+  const rawSchoolName = branchInfo?.branchName || propSchoolName || "";
+  const isGenericName = !rawSchoolName || rawSchoolName.toLowerCase().includes("école gestion") || rawSchoolName.toLowerCase().includes("ecole gestion") || rawSchoolName.toLowerCase().includes("aboubacar") || rawSchoolName.toLowerCase().includes("main");
+  const schoolName = !isGenericName ? rawSchoolName : "CES BOURJA MARADI";
+  const contactNo = branchInfo?.contactNo || "+227 90 00 00 00";
+  const website = branchInfo?.branchAlias || "web-ces-bourja.vercel.app";
   const logoPath = branchInfo?.logoPath;
 
   const isProvisoire = !student.id || String(student.id).includes("local-") || Number(student.id) < 0 || (typeof navigator !== "undefined" && !navigator.onLine);

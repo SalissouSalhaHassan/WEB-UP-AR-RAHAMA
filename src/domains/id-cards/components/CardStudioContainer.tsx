@@ -744,7 +744,7 @@ export default function CardStudioContainer() {
                     <div key={st.id} className="batch-print-card shadow-md rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:scale-105 transition-transform">
                       <StudentCard
                         student={st}
-                        schoolName={activeBranch?.nomBranch || "ÉCOLE GESTION PRO"}
+                        schoolName={activeBranch?.nomBranch || activeBranch?.branchName || "CES BOURJA MARADI"}
                         academicYear="2025-2026"
                         side={cardSide}
                       />
