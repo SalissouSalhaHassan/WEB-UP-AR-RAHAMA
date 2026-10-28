@@ -273,7 +273,7 @@ export default async function DashboardPage() {
     null;
 
   const branding = {
-    name: branchData?.branchName || user?.school?.name || "GROUP AIIU-NIGER",
+    name: branchData?.branchName || user?.school?.name || "CES BOURJA",
     logoPath: schoolLogo,
     level: branchData?.instType || user?.educationalLevel || "Gestion Scolaire",
   };

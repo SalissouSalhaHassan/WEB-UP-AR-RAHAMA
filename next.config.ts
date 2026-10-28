@@ -8,8 +8,9 @@ const nextConfig: NextConfig = {
       allowedOrigins: [
         "*.edut.pro",
         "edut.pro",
-        "group-aiiu-niger.edut.pro",
+        "ces-bourja.edut.pro",
         "*.vercel.app",
+        "edut-web-ces-bourja.vercel.app",
         "edut-web.vercel.app",
         "vercel.app",
         "localhost:3000",

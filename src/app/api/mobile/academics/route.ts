@@ -1213,7 +1213,7 @@ export async function POST(request: NextRequest) {
         targetSchoolId = existing.schoolId;
       }
       if (!targetSchoolId) {
-        targetSchoolId = 9;
+        targetSchoolId = 1;
       }
 
       let nextStatus = "BROUILLON";

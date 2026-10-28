@@ -456,7 +456,7 @@ export default async function FinancePage({
     };
 
     const activeSessionName = sessionRow?.sessionName || (headerConfig as any)?.schoolYear || "2025–2026";
-    const schoolName = (user as any)?.school?.name || (headerConfig as any)?.schoolName || "GROUP AIIU-NIGER";
+    const schoolName = (user as any)?.school?.name || (headerConfig as any)?.schoolName || "CES BOURJA";
 
     const stats = {
       totalExpected,
@@ -490,9 +490,9 @@ export default async function FinancePage({
         advancedStats={null}
         headerConfig={null}
         activeSessionName="2025–2026"
-        schoolName="GROUP AIIU-NIGER"
+        schoolName="CES BOURJA"
         currentUser={null}
-        currentSchoolId={9}
+        currentSchoolId={1}
         isSessionFrozen={false}
         sessions={[]}
         currentSessionId={null}

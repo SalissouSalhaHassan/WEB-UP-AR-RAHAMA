@@ -27,16 +27,29 @@ function getSupabaseEnv() {
   };
 }
 
-function parseJwtPayload(token: string): Record<string, any> | null {
+function verifyAndParseJwtPayload(token: string): { payload: Record<string, any> | null; signatureVerified: boolean } {
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    if (parts.length !== 3) return { payload: null, signatureVerified: false };
+    const [headerB64, payloadB64, signatureB64] = parts;
+    const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     const json = Buffer.from(base64, "base64").toString("utf-8");
-    return JSON.parse(json);
+    const payload = JSON.parse(json);
+
+    // Verify HMAC signature for edut_server issued tokens
+    if (payload?.iss === "edut_server") {
+      const crypto = require("crypto");
+      const sigSecret = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "edut_secure_secret";
+      const expectedSig = crypto.createHmac("sha256", sigSecret).update(`${headerB64}.${payloadB64}`).digest("base64url");
+      const altSecret = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "edut_secure_secret";
+      const expectedAltSig = crypto.createHmac("sha256", altSecret).update(`${headerB64}.${payloadB64}`).digest("base64url");
+      const verified = signatureB64 === expectedSig || signatureB64 === expectedAltSig;
+      return { payload: verified ? payload : null, signatureVerified: verified };
+    }
+
+    return { payload, signatureVerified: false };
   } catch {
-    return null;
+    return { payload: null, signatureVerified: false };
   }
 }
 
@@ -59,15 +72,14 @@ export async function getMobileUser(request: NextRequest) {
   });
 
   let authUser: { id: string; email?: string } | null = null;
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data } = await supabase.auth.getUser(token);
   if (data?.user) {
     authUser = data.user;
   } else {
     // Offline Grace Fallback:
     // If the mobile client is syncing operations that were queued offline,
     // the Supabase access token may have expired while without connectivity.
-    // Verify that the token structure is a legitimate Supabase JWT issued for our project.
-    const payload = parseJwtPayload(token);
+    const { payload, signatureVerified } = verifyAndParseJwtPayload(token);
     const now = Math.floor(Date.now() / 1000);
     // Allow up to 30 days offline grace period from token expiration
     const maxOfflineGraceSeconds = 30 * 24 * 60 * 60;
@@ -77,28 +89,17 @@ export async function getMobileUser(request: NextRequest) {
     const configuredRefMatch = url.match(/https:\/\/([^.]+)\.supabase\.co/);
     const configuredRef = configuredRefMatch?.[1];
 
-    const isEdutIssuer = Boolean(
+    const isProjectMatch = Boolean(
       payload && (
-        payload.iss === "edut_server" ||
-        payload.iss?.includes("supabase") ||
-        (configuredRef && (payload.iss?.includes(configuredRef) || payload.ref === configuredRef)) ||
-        payload.iss?.includes("gkarotahjtyvmhjqejts") ||
-        payload.iss?.includes("ntlncvstzmfqbqystpwi") ||
-        payload.ref === "gkarotahjtyvmhjqejts" ||
-        payload.ref === "ntlncvstzmfqbqystpwi" ||
-        payload.aud === "authenticated"
+        signatureVerified ||
+        (configuredRef && (payload.iss?.includes(configuredRef) || payload.ref === configuredRef))
       )
     );
 
-    if (payload && (payload.sub || payload.email || payload.id) && (isEdutIssuer || isWithinGrace)) {
+    if (payload && (payload.sub || payload.email || payload.id) && isProjectMatch && isWithinGrace) {
       authUser = {
         id: payload.sub || `edut_${payload.id}`,
         email: payload.email,
-      };
-    } else if (token.startsWith("edut_session_")) {
-      // Emergency session fallback
-      authUser = {
-        id: token,
       };
     } else {
       return { user: null, response: mobileJsonError("Session mobile invalide.", 401) };
@@ -154,7 +155,6 @@ export async function canUseMobileModule(
 ) {
   const roleType = await getUserRoleType(user);
   if (roleType === "super_admin" || roleType === "ministere") return true;
-  if (action === "canView") return true;
   if (moduleName.toLowerCase() === "messaging" && (roleType === "teacher" || roleType === "enseignant")) {
     return action !== "canDelete";
   }

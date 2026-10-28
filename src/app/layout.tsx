@@ -14,8 +14,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "Edut Pro - Gestion Scolaire",
-  description: "Système ERP complet de gestion scolaire",
+  title: "Edut Pro - CES BOURJA",
+  description: "Système ERP complet de gestion scolaire - CES BOURJA",
   manifest: "/manifest.json",
   icons: {
     icon: "/edut-icon.svg",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Edut Pro",
+    title: "CES BOURJA",
   },
 };
 

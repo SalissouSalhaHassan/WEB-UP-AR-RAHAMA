@@ -195,7 +195,7 @@ export default function RegisterPage() {
                         type="text"
                         value={schoolCode}
                         onChange={(e) => setSchoolCode(e.target.value)}
-                        placeholder="Ex: 12 ou ceg-raouda"
+                        placeholder="Ex: 1 ou ces-bourja"
                         className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-600 text-sm font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                       />
                     </div>

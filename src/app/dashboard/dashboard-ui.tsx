@@ -491,7 +491,7 @@ export default function DashboardUI(props: DashboardUIProps) {
               </div>
               <div className="leading-tight">
                 <p className="text-sm font-black text-slate-900 dark:text-white">
-                  {props.user?.nomPrenom || props.user?.utilisateur || "Admin GROUP AIIU-NIGER"}
+                  {props.user?.nomPrenom || props.user?.utilisateur || "Admin CES BOURJA"}
                 </p>
                 <p className="text-xs font-bold text-slate-400 dark:text-slate-400">
                   {props.user?.admin || !props.user?.role ? "Administrateur" : props.user?.role?.roleName || "Administrateur"}

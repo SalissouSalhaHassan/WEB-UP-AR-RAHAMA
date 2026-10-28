@@ -111,9 +111,9 @@ export default function SynchronisationClient() {
       return currentName || currentLogin || "Admin";
     }
 
-    // 4. Known user ID 28 is the default admin for School 9 (GROUP AIIU-NIGER)
+    // 4. Default admin fallback
     if (String(item.userId) === "28" || String(item.payload?.userId) === "28") {
-      return currentName || "Admin GROUP AIIU-NIGER";
+      return currentName || "Admin CES BOURJA";
     }
 
     if (recBy) return recBy;
@@ -134,10 +134,10 @@ export default function SynchronisationClient() {
     if (item.schoolName) return item.schoolName;
     if (item.payload?.schoolName) return item.payload.schoolName;
 
-    // 2. School 9 is GROUP AIIU-NIGER
+    // 2. Default school fallback (CES BOURJA)
     const sId = item.schoolId || item.payload?.schoolId;
-    if (sId === 9 || String(sId) === "9" || !sId) {
-      return cachedUser?.school?.name || sessionRef?.payload?.school?.name || "GROUP AIIU-NIGER";
+    if (sId === 1 || String(sId) === "1" || !sId) {
+      return cachedUser?.school?.name || sessionRef?.payload?.school?.name || "CES BOURJA";
     }
 
     // 3. Match from cached user school

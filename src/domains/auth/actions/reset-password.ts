@@ -258,7 +258,7 @@ export async function recoverAndResetAccount(params: ResetPasswordParams) {
     }
 
     let cleanSchool = schoolSlug.trim();
-    // Strip domain if host passed (e.g. group-aiiu-niger.edut.pro -> group-aiiu-niger)
+    // Strip domain if host passed (e.g. ces-bourja.edut.pro -> ces-bourja)
     if (cleanSchool.includes(".")) {
       cleanSchool = cleanSchool.split(".")[0];
     }

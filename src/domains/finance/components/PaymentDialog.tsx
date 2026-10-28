@@ -146,8 +146,8 @@ export default function PaymentDialog({
 
       resolvedCashier = resolvedCashier || "Admin";
       resolvedUserId = resolvedUserId || "Admin";
-      resolvedSchoolId = resolvedSchoolId || 9;
-      resolvedSchoolName = resolvedSchoolName || "GROUP AIIU-NIGER";
+      resolvedSchoolId = resolvedSchoolId || 1;
+      resolvedSchoolName = resolvedSchoolName || "CES BOURJA";
 
       const data: PaymentFormData & { schoolId?: number; recordedBy?: string } = {
         feeId: currentFee.id,

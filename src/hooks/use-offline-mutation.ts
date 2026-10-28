@@ -171,16 +171,16 @@ export function useOfflineMutation<T>() {
 
       // Tier 5: Absolute default fallbacks to prevent orphaned / anonymous outbox actions
       if (!schoolId) {
-        schoolId = 11;
+        schoolId = 1;
       }
       if (!schoolName) {
-        schoolName = "Établissement Scolaire";
+        schoolName = "CES BOURJA";
       }
       if (!userId) {
         userId = (payload as any)?.recordedBy || "Admin";
       }
       if (!userName) {
-        userName = (payload as any)?.recordedBy || (String(userId) === "28" ? "Admin GROUP AIIU-NIGER" : "Admin");
+        userName = (payload as any)?.recordedBy || "Admin CES BOURJA";
       }
 
       const now = Date.now();

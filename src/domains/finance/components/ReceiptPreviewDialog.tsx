@@ -538,7 +538,7 @@ export default function ReceiptPreviewDialog({
       } catch (_) {}
     }
 
-    return lastPayment?.recordedBy || feeData?.payment?.recordedBy || "Admin GROUP AIIU-NIGER";
+    return lastPayment?.recordedBy || feeData?.payment?.recordedBy || "Admin CES BOURJA";
   }, [lastPayment, feeData, currentUser]);
 
   const targetHeader = effectiveHeaderConfig || activeHeaderConfig;

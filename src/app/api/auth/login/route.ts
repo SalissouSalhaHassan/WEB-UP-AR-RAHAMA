@@ -82,17 +82,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (!dbUser && (cleanUsername.includes("aiiu") || cleanUsername.includes("admin"))) {
-        const rowsAdmin = await db
-          .select()
-          .from(users)
-          .where(or(eq(users.admin, true), eq(users.superAdmin, true)))
-          .limit(1);
-        if (rowsAdmin && rowsAdmin[0]) {
-          dbUser = rowsAdmin[0];
-        }
-      }
-
       if (dbUser) {
         const isMatch = checkPasswordMatch(rawPassword, dbUser.motDePasse);
 

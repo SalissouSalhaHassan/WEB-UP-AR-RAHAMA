@@ -778,7 +778,7 @@ export default function DashboardSidebar({
             </div>
             <div className="min-w-0">
               <p className="text-[13px] font-bold text-slate-900 dark:text-white truncate">
-                {user?.nomPrenom || user?.utilisateur || "Admin GROUP AIIU-NIGER"}
+                {user?.nomPrenom || user?.utilisateur || "Admin CES BOURJA"}
               </p>
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
                 {user?.admin || !user?.role ? "Administrateur" : user?.role?.roleName || "Administrateur"}

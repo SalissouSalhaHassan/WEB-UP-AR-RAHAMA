@@ -258,7 +258,7 @@ export const hasPermission = cache(async (
 
   if (!userBase) {
     if (user?.admin || user?.superAdmin) return true;
-    return true;
+    return false;
   }
 
   if (userBase.admin || userBase.superAdmin) return true;

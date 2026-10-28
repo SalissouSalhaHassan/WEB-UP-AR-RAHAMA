@@ -164,35 +164,18 @@ export default function LoginPage() {
         }
       } catch (_) {}
 
-      // Session sécurisée hors-ligne pour la gestion locale
-      const offlineSession = cachedUser || {
-        id: 28,
-        schoolId: 9,
-        utilisateur: cleanUsername,
-        supabaseId: "00000000-0000-0000-0000-000000000000",
-        nomPrenom: cleanUsername.includes("aiiu") ? "Admin GROUP AIIU-NIGER" : (cleanUsername.split("@")[0] || "Administrateur"),
-        motDePasse: "OFFLINE_AUTH",
-        admin: true,
-        superAdmin: false,
-        langue: "FR",
-        roleId: 1,
-        educationalLevel: "Tous",
-        avatarUrl: null,
-        role: {
-          roleName: "Administrateur",
-          permissions: [],
-        },
-        school: {
-          id: 9,
-          name: "GROUP AIIU-NIGER",
-          slug: "group-aiiu-niger",
-        },
-      };
+      if (!cachedUser) {
+        setError("Connexion Internet indisponible. Une première connexion en ligne est requise sur cet appareil.");
+        setIsLoading(false);
+        return;
+      }
+
+      const offlineSession = cachedUser;
 
       try {
         localStorage.setItem("edut_user_session", JSON.stringify(offlineSession));
         localStorage.setItem(`edut_offline_user_${cleanUsername}`, JSON.stringify(offlineSession));
-        localStorage.setItem("active_school_id", String(offlineSession.schoolId || 9));
+        localStorage.setItem("active_school_id", String(offlineSession.schoolId || 1));
         localStorage.setItem("edut_offline_mode", "true");
 
         const { localDb } = await import("@/infrastructure/local-db/dexie");
@@ -208,7 +191,7 @@ export default function LoginPage() {
       // Cookie pour Next.js SSR
       const encoded = encodeURIComponent(JSON.stringify(offlineSession));
       document.cookie = `edut_session_user=${encoded}; path=/; max-age=604800; SameSite=Lax`;
-      document.cookie = `selected_branch_id=${offlineSession.schoolId || 9}; path=/; max-age=604800; SameSite=Lax`;
+      document.cookie = `selected_branch_id=${offlineSession.schoolId || 1}; path=/; max-age=604800; SameSite=Lax`;
 
       window.location.replace("/dashboard");
     };
@@ -243,7 +226,7 @@ export default function LoginPage() {
           localStorage.setItem("edut_user_session", JSON.stringify(data.user));
           localStorage.setItem("edut_last_session_user", JSON.stringify(data.user));
           localStorage.setItem(`edut_offline_user_${cleanUsername}`, JSON.stringify(data.user));
-          localStorage.setItem("active_school_id", String(data.user.schoolId || data.user.school?.id || 9));
+          localStorage.setItem("active_school_id", String(data.user.schoolId || data.user.school?.id || 1));
         } catch (_) {}
       }
 
@@ -696,7 +679,7 @@ export default function LoginPage() {
                       required
                       value={forgotSchoolSlug}
                       onChange={(e) => setForgotSchoolSlug(e.target.value)}
-                      placeholder={school?.slug || "ex: aiiu-niger ou 1"}
+                      placeholder={school?.slug || "ex: ces-bourja ou 1"}
                       className="w-full h-11 pl-10 pr-4 bg-white/[0.04] border border-white/[0.08] rounded-xl outline-none text-white text-xs font-medium focus:border-indigo-500/50"
                     />
                   </div>

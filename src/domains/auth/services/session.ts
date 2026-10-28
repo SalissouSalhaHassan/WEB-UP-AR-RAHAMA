@@ -116,42 +116,14 @@ export const getCurrentUser = cache(async (): Promise<SessionUserRecord | null> 
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user || !user.email) {
-      // Default verified school admin session for GROUP AIIU-NIGER (school_id: 9)
-      return {
-        id: 28,
-        schoolId: 9,
-        utilisateur: "aiiu@gmail.com",
-        supabaseId: "00000000-0000-0000-0000-000000000000",
-        nomPrenom: "Admin GROUP AIIU-NIGER",
-        motDePasse: "SUPABASE_AUTH",
-        admin: true,
-        superAdmin: false,
-        langue: "FR",
-        roleId: 1,
-        emplacement: null,
-        depots: null,
-        educationalLevel: "Tous",
-        avatarUrl: null,
-        createdAt: null,
-        studentId: null,
-        employeeId: null,
-        role: {
-          roleName: "Administrateur",
-          permissions: [],
-        },
-        school: {
-          id: 9,
-          name: "GROUP AIIU-NIGER",
-          slug: "group-aiiu-niger",
-        },
-      };
+      return null;
     }
 
     const email = user.email.toLowerCase().trim();
     const username = email.includes("@") ? email.split("@")[0] : email;
     const isPlatformOwner = isConfiguredPlatformOwner(email);
 
-    let dbUser = await readDb.query.users.findFirst({
+    const dbUser = await readDb.query.users.findFirst({
       where: or(
         eq(users.supabaseId, user.id),
         eq(users.utilisateur, email),
@@ -166,67 +138,22 @@ export const getCurrentUser = cache(async (): Promise<SessionUserRecord | null> 
     }) as SessionUserRecord | null;
 
     if (!dbUser) {
-      dbUser = {
-        id: 28,
-        schoolId: 9,
-        utilisateur: email,
-        supabaseId: user.id,
-        nomPrenom: (user.user_metadata as any)?.full_name || username || "Admin GROUP AIIU-NIGER",
-        motDePasse: "SUPABASE_AUTH",
-        admin: true,
-        superAdmin: isPlatformOwner,
-        langue: "FR",
-        roleId: 1,
-        emplacement: null,
-        depots: null,
-        educationalLevel: "Tous",
-        avatarUrl: null,
-        createdAt: null,
-        studentId: null,
-        employeeId: null,
-        role: {
-          roleName: isPlatformOwner ? "Super Admin" : "Administrateur",
-          permissions: [],
-        },
-        school: {
-          id: 9,
-          name: "GROUP AIIU-NIGER",
-          slug: "group-aiiu-niger",
-        },
-      };
+      if (isPlatformOwner) {
+        return createPlatformOwnerFallback(user, email);
+      }
+      return null;
+    }
+
+    if (cacheKeyByCookie) {
+      try {
+        await redisCache.set(cacheKeyByCookie, dbUser, 300);
+      } catch (_) {}
     }
 
     return dbUser;
   } catch (error) {
     console.error("[getCurrentUser] Error:", error);
-    return {
-      id: 28,
-      schoolId: 9,
-      utilisateur: "aiiu@gmail.com",
-      supabaseId: "00000000-0000-0000-0000-000000000000",
-      nomPrenom: "Admin GROUP AIIU-NIGER",
-      motDePasse: "SUPABASE_AUTH",
-      admin: true,
-      superAdmin: false,
-      langue: "FR",
-      roleId: 1,
-      emplacement: null,
-      depots: null,
-      educationalLevel: "Tous",
-      avatarUrl: null,
-      createdAt: null,
-      studentId: null,
-      employeeId: null,
-      role: {
-        roleName: "Administrateur",
-        permissions: [],
-      },
-      school: {
-        id: 9,
-        name: "GROUP AIIU-NIGER",
-        slug: "group-aiiu-niger",
-      },
-    };
+    return null;
   }
 });
 

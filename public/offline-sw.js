@@ -1,4 +1,4 @@
-﻿const CACHE_VERSION = "edut-offline-ceg-raouda-v1";
+const CACHE_VERSION = "edut-offline-ces-bourja-v1";
 const CORE_STATIC_ASSETS = [
   "/offline.html",
   "/manifest.json",
