@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
         "edut.pro",
         "ces-bourja.edut.pro",
         "*.vercel.app",
+        "web-ces-bourja.vercel.app",
         "edut-web-ces-bourja.vercel.app",
         "edut-web.vercel.app",
         "vercel.app",
