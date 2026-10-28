@@ -26,7 +26,7 @@ export default function SyncStatus({ user }: SyncStatusProps = {}) {
           id: user.id,
           utilisateur: user.utilisateur,
           nomPrenom: user.nomPrenom,
-          schoolId: user.schoolId || user.school?.id || 9,
+          schoolId: user.schoolId || user.school?.id || 2,
           role: user.role?.roleName || "Administrateur",
         };
         localStorage.setItem("edut_user_session", JSON.stringify(sessionPayload));
