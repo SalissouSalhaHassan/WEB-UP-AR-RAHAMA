@@ -124,9 +124,9 @@ export const FONT_FAMILIES = [
   { name: "Times New Roman", label: "Times New Roman" },
 ];
 
-export const CARD_DIMENSIONS: Record<CardSize, { width: number; height: number; label: string }> = {
-  CR80: { width: 324, height: 204, label: "PVC CR80 (85.6 × 54 mm)" },
-  CR100: { width: 378, height: 265, label: "CR100 (100 × 70 mm)" },
-  Badge: { width: 340, height: 227, label: "Badge Événement (90 × 60 mm)" },
-  Custom: { width: 324, height: 204, label: "Taille Personnalisée" },
+export const CARD_DIMENSIONS: Record<CardSize, { width: number; height: number; mmWidth: number; mmHeight: number; label: string }> = {
+  CR80: { width: 324, height: 204, mmWidth: 85.6, mmHeight: 54.0, label: "PVC CR80 (85.6 × 54 mm)" },
+  CR100: { width: 378, height: 265, mmWidth: 100.0, mmHeight: 70.0, label: "CR100 (100 × 70 mm)" },
+  Badge: { width: 340, height: 227, mmWidth: 90.0, mmHeight: 60.0, label: "Badge Événement (90 × 60 mm)" },
+  Custom: { width: 324, height: 204, mmWidth: 85.6, mmHeight: 54.0, label: "Taille Personnalisée" },
 };
