@@ -70,9 +70,9 @@ export const StudentCard: React.FC<StudentCardProps> = ({
   const schoolName = !isGenericName ? rawSchoolName : "CES BOURJA MARADI";
   const contactNo = branchInfo?.contactNo || "+227 90 00 00 00";
   const website = branchInfo?.branchAlias || "web-ces-bourja.vercel.app";
-  const logoPath = branchInfo?.logoPath;
+  const logoPath = branchInfo?.logoPath || "/logo.png";
 
-  const isProvisoire = !student.id || String(student.id).includes("local-") || Number(student.id) < 0 || (typeof navigator !== "undefined" && !navigator.onLine);
+  const isProvisoire = !student.id || String(student.id).includes("local-") || Number(student.id) < 0;
 
   const qr = JSON.stringify({
     type: "student_pass",

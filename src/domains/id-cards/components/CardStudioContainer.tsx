@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   CreditCard, Search, Filter, Printer, Download, Check, X, User,
   Sparkles, Layers, FileText, CheckCircle2, AlertCircle, Image as ImageIcon,
-  ChevronLeft, ChevronRight, RefreshCw, Upload, Eye, EyeOff, LayoutGrid, ShieldCheck, ArrowRight
+  ChevronLeft, ChevronRight, RefreshCw, Upload, Eye, EyeOff, LayoutGrid, ShieldCheck, ArrowRight,
+  Users, FlipHorizontal, FileDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,10 @@ import { toast } from "sonner";
 import { getStudents } from "@/domains/students/actions/students.actions";
 import { getBranches } from "@/domains/settings/actions/settings.actions";
 import CardDesigner from "./designer/CardDesigner";
+import CardCanvas from "./designer/CardCanvas";
+import { SMART_CARD_PRESETS } from "./designer/cardSmartPresets";
+import { CardElement, CARD_DIMENSIONS, CardSize, Orientation } from "./designer/types";
 import { StudentCard } from "./StudentCard";
-import { exportCardToPDF } from "./designer/cardExportEngine";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -75,14 +78,6 @@ const SAMPLE_STUDENTS = [
   // --- 1ère A ---
   { id: 316, nomEtudiant: "Zalika", prenomEtudiant: "Abdou", numAdmission: "EDUT-2024-000316", classe: "1ère A", educationalLevel: "Lycée Général", sexe: "Fille", dateNaissance: "2007-06-19", lieuNaissance: "Maradi", nationalite: "Nigérienne", photoPath: null },
   { id: 351, nomEtudiant: "Bachir", prenomEtudiant: "Harouna", numAdmission: "EDUT-2024-000351", classe: "1ère A", educationalLevel: "Lycée Général", sexe: "Garçon", dateNaissance: "2007-10-03", lieuNaissance: "Zinder", nationalite: "Nigérienne", photoPath: null },
-
-  // --- L1 Arabic ---
-  { id: 315, nomEtudiant: "Ibrahim", prenomEtudiant: "Salissou", numAdmission: "EDUT-2024-000315", classe: "L1 Arabic", educationalLevel: "Licence Général", sexe: "Garçon", dateNaissance: "2005-10-11", lieuNaissance: "Zinder", nationalite: "Nigérienne", photoPath: null },
-  { id: 352, nomEtudiant: "Samira", prenomEtudiant: "Djibrilla", numAdmission: "EDUT-2024-000352", classe: "L1 Arabic", educationalLevel: "Licence Général", sexe: "Fille", dateNaissance: "2005-04-29", lieuNaissance: "Tillabéri", nationalite: "Nigérienne", photoPath: null },
-
-  // --- L2 Arabic ---
-  { id: 314, nomEtudiant: "Fatouma", prenomEtudiant: "Hassan", numAdmission: "EDUT-2024-000314", classe: "L2 Arabic", educationalLevel: "Licence Général", sexe: "Fille", dateNaissance: "2004-03-22", lieuNaissance: "Niamey", nationalite: "Nigérienne", photoPath: null },
-  { id: 353, nomEtudiant: "Sidi Mohamed", prenomEtudiant: "Ali", numAdmission: "EDUT-2024-000353", classe: "L2 Arabic", educationalLevel: "Licence Général", sexe: "Garçon", dateNaissance: "2004-11-15", lieuNaissance: "Tahoua", nationalite: "Nigérienne", photoPath: null },
 ];
 
 function isValidPhoto(path?: string | null): boolean {
@@ -103,10 +98,8 @@ function normalizeSearchText(str?: string | null): string {
 
 function expandSearchText(str?: string | null): string {
   if (!str) return "";
-  let norm = normalizeSearchText(str);
-
-  // Class aliases expansion (e.g. Tle -> Terminale, 6e -> 6ème)
-  let expansions = [norm];
+  const norm = normalizeSearchText(str);
+  const expansions = [norm];
   if (norm.includes("tle") || norm.includes("terminal")) {
     expansions.push("tle", "terminale", "terminal", "bac");
   }
@@ -128,8 +121,22 @@ function expandSearchText(str?: string | null): string {
   if (norm.includes("6eme") || norm.includes("6e") || norm.includes("sixieme")) {
     expansions.push("6eme", "6e", "sixieme");
   }
-
   return expansions.join(" ");
+}
+
+async function waitForImagesInNode(node: HTMLElement): Promise<void> {
+  const imgs = Array.from(node.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const done = () => resolve();
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+        setTimeout(done, 1500);
+      });
+    })
+  );
 }
 
 export default function CardStudioContainer() {
@@ -142,9 +149,43 @@ export default function CardStudioContainer() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
   const [previewStudentId, setPreviewStudentId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>("ALL");
   const [filterType, setFilterType] = useState<"all" | "selected" | "no-photo">("all");
-  const [cardSide, setCardSide] = useState<"recto" | "verso">("recto");
+
+  // Advanced Print & Export Configuration State
+  const [printScope, setPrintScope] = useState<"auto" | "single" | "class" | "selected">("auto");
+  const [printSidesMode, setPrintSidesMode] = useState<"recto-verso" | "recto" | "verso">("recto-verso");
+  const [pdfPageFormat, setPdfPageFormat] = useState<"cr80-individual" | "a4-grid">("cr80-individual");
+  const [renderTemplateStyle, setRenderTemplateStyle] = useState<"studio" | "classic">("studio");
   const [printing, setPrinting] = useState(false);
+
+  // Synchronized Studio Template Design State
+  const [studioDesign, setStudioDesign] = useState<{
+    rectoElements: CardElement[];
+    versoElements: CardElement[];
+    cardType: CardSize;
+    orientation: Orientation;
+    templateName: string;
+  }>({
+    rectoElements: SMART_CARD_PRESETS[0].rectoElements,
+    versoElements: SMART_CARD_PRESETS[0].versoElements,
+    cardType: SMART_CARD_PRESETS[0].cardType,
+    orientation: SMART_CARD_PRESETS[0].orientation,
+    templateName: SMART_CARD_PRESETS[0].name,
+  });
+
+  const handleDesignStateChange = useCallback(
+    (newDesign: {
+      rectoElements: CardElement[];
+      versoElements: CardElement[];
+      cardType: CardSize;
+      orientation: Orientation;
+      templateName: string;
+    }) => {
+      setStudioDesign(newDesign);
+    },
+    []
+  );
 
   const printRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +193,6 @@ export default function CardStudioContainer() {
 
   useEffect(() => {
     async function loadStudioData() {
-      // 1. Try local Dexie DB first for true offline capability
       try {
         const { localDb } = await import("@/infrastructure/local-db/dexie");
         const localStudents = await localDb.students.toArray();
@@ -163,12 +203,13 @@ export default function CardStudioContainer() {
             prenomEtudiant: s.prenomEtudiant || "",
             numAdmission: s.numAdmission,
             classe: s.classe || "Classe N/A",
-            educationalLevel: s.educationalLevel || s.cycle || "Primaire Général",
+            educationalLevel: s.educationalLevel || s.cycle || "Secondaire",
             sexe: s.sexe || "Garçon",
-            dateNaissance: s.dateNaissance || "2015-01-01",
-            lieuNaissance: s.lieuNaissance || "Niamey",
+            dateNaissance: s.dateNaissance || "2012-01-01",
+            lieuNaissance: s.lieuNaissance || "Maradi",
             nationalite: s.nationalite || "Nigérienne",
             photoPath: s.photoPath || null,
+            whatsapp: s.whatsapp || s.telTuteur || s.telephone || null,
           }));
           setStudents(mapped);
           setPreviewStudentId(mapped[0].id);
@@ -177,7 +218,6 @@ export default function CardStudioContainer() {
         console.debug("IndexedDB students load notice:", err);
       }
 
-      // 2. Fetch server data if online
       if (navigator.onLine) {
         Promise.all([getStudents(), getBranches()])
           .then(([studRes, branchRes]: [any, any]) => {
@@ -234,36 +274,43 @@ export default function CardStudioContainer() {
     fileInputRef.current?.click();
   };
 
-  // Filtered Students List for Left Sidebar (Searches: Name, Matricule/ID Reference, Class/Section)
+  // Unique Classes extracted from Students
+  const availableClasses = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      if (s.classe && String(s.classe).trim()) {
+        set.add(String(s.classe).trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
+  }, [students]);
+
+  // Filtered Students List for Left Sidebar
   const filteredStudents = useMemo(() => {
     const q = normalizeSearchText(searchQuery);
 
     return students.filter((s) => {
+      if (selectedClassFilter !== "ALL" && String(s.classe || "").trim() !== selectedClassFilter) {
+        return false;
+      }
+
       let match = true;
       if (q) {
         const rawTokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
-
         const nom = normalizeSearchText(s.nomEtudiant);
         const prenom = normalizeSearchText(s.prenomEtudiant);
         const fullName = `${nom} ${prenom}`;
         const reverseName = `${prenom} ${nom}`;
         const matricule = normalizeSearchText(`${s.numAdmission || ""} ${s.id || ""} ${s.studentId || ""}`);
         const classe = expandSearchText(`${s.classe || ""} ${s.section || ""} ${s.educationalLevel || ""} ${s.filiere || ""}`);
-
-        // Synthetic keywords for generic class / matricule / name matching (e.g. typing "cl", "classe", "mat", "id")
         const keywords = "classe class cl matricule mat id eleve etudiant student";
-
         const haystack = `${fullName} ${reverseName} ${matricule} ${classe} ${keywords}`;
 
         match = rawTokens.every((tok) => {
           const normTok = normalizeSearchText(tok);
           const expandedTok = expandSearchText(normTok);
           const subwords = expandedTok.split(/\s+/).filter(Boolean);
-
-          return (
-            haystack.includes(normTok) ||
-            subwords.some((sub) => haystack.includes(sub))
-          );
+          return haystack.includes(normTok) || subwords.some((sub) => haystack.includes(sub));
         });
       }
 
@@ -271,7 +318,7 @@ export default function CardStudioContainer() {
       if (filterType === "no-photo") return match && !isValidPhoto(s.photoPath);
       return match;
     });
-  }, [students, searchQuery, filterType, selectedStudentIds]);
+  }, [students, searchQuery, selectedClassFilter, filterType, selectedStudentIds]);
 
   // Active Preview Student
   const activeStudent = useMemo(() => {
@@ -293,10 +340,32 @@ export default function CardStudioContainer() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedStudentIds.length === filteredStudents.length) {
-      setSelectedStudentIds([]);
+    const filteredIds = filteredStudents.map((s) => s.id);
+    const allFilteredSelected =
+      filteredIds.length > 0 && filteredIds.every((id) => selectedStudentIds.includes(id));
+
+    if (allFilteredSelected) {
+      setSelectedStudentIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
     } else {
-      setSelectedStudentIds(filteredStudents.map((s) => s.id));
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleSelectEntireClass = (className: string) => {
+    setSelectedClassFilter(className);
+    setFilterType("all");
+    if (className === "ALL") {
+      const allIds = students.map((s) => s.id);
+      setSelectedStudentIds(allIds);
+      setPrintScope("selected");
+      toast.success(`Tous les ${allIds.length} élèves ont été sélectionnés !`);
+    } else {
+      const classStudents = students.filter((s) => String(s.classe || "").trim() === className);
+      const ids = classStudents.map((s) => s.id);
+      setSelectedStudentIds(ids);
+      if (classStudents[0]) setPreviewStudentId(classStudents[0].id);
+      setPrintScope("class");
+      toast.success(`Classe "${className}" sélectionnée (${ids.length} élève(s)) !`);
     }
   };
 
@@ -305,66 +374,341 @@ export default function CardStudioContainer() {
     return students.filter((s) => selectedStudentIds.includes(s.id));
   }, [students, selectedStudentIds]);
 
-  // Handle High-DPI Batch Print Execution
-  const handleBatchPrint = async () => {
-    const listToPrint = selectedStudents.length > 0 ? selectedStudents : (activeStudent ? [activeStudent] : []);
-    if (listToPrint.length === 0) {
-      toast.error("Veuillez sélectionner au moins un élève pour l'impression.");
+  // Resolved Students to Generate / Print based on printScope
+  const targetStudentsToPrint = useMemo(() => {
+    if (printScope === "single") {
+      return activeStudent ? [activeStudent] : [];
+    }
+    if (printScope === "class") {
+      const targetClass =
+        selectedClassFilter !== "ALL"
+          ? selectedClassFilter
+          : activeStudent?.classe || availableClasses[0] || "";
+      const byClass = students.filter((s) => String(s.classe || "").trim() === targetClass);
+      return byClass.length > 0 ? byClass : activeStudent ? [activeStudent] : [];
+    }
+    if (printScope === "selected") {
+      return selectedStudents.length > 0 ? selectedStudents : activeStudent ? [activeStudent] : [];
+    }
+    // "auto": if user selected students, use them; else if class filter active, use class; else activeStudent
+    if (selectedStudents.length > 0) return selectedStudents;
+    if (selectedClassFilter !== "ALL" && filteredStudents.length > 0) return filteredStudents;
+    return activeStudent ? [activeStudent] : [];
+  }, [printScope, activeStudent, selectedClassFilter, availableClasses, students, selectedStudents, filteredStudents]);
+
+  // Resolved Sides to Generate ("recto-verso" => ["recto", "verso"])
+  const targetSides = useMemo<("recto" | "verso")[]>(() => {
+    if (printSidesMode === "recto-verso") return ["recto", "verso"];
+    if (printSidesMode === "verso") return ["verso"];
+    return ["recto"];
+  }, [printSidesMode]);
+
+  // Capture all rendered batch card faces at Ultra-HD 300+ DPI (scale: 4)
+  const captureBatchCardsHighDPI = async () => {
+    if (!printRef.current) return [];
+    const cardNodes = Array.from(
+      printRef.current.querySelectorAll<HTMLElement>(".batch-print-card-face")
+    );
+    const captured: {
+      imgData: string;
+      studentName: string;
+      matricule: string;
+      classe: string;
+      side: "recto" | "verso";
+    }[] = [];
+
+    for (let i = 0; i < cardNodes.length; i++) {
+      const node = cardNodes[i];
+      await waitForImagesInNode(node);
+      const canvas = await html2canvas(node, {
+        scale: 4, // Ultra-HD > 300 DPI precision
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+      captured.push({
+        imgData: canvas.toDataURL("image/png", 1.0),
+        studentName: node.dataset.studentName || `Eleve_${i + 1}`,
+        matricule: node.dataset.matricule || "",
+        classe: node.dataset.classe || "",
+        side: (node.dataset.side as "recto" | "verso") || "recto",
+      });
+    }
+    return captured;
+  };
+
+  // Generate & Download High-Precision PDF (Recto-Verso supported, CR80 Individual or A4 Grid)
+  const handleBatchPrintPDF = async (directBrowserPrint = false) => {
+    if (targetStudentsToPrint.length === 0) {
+      toast.error("Veuillez sélectionner au moins un élève ou une classe.");
       return;
     }
 
     setPrinting(true);
-    const toastId = toast.loading(`Préparation de ${listToPrint.length} carte(s) pour l'impression...`);
+    const totalFaces = targetStudentsToPrint.length * targetSides.length;
+    const modeLabel =
+      printSidesMode === "recto-verso"
+        ? "Recto-Verso (Duplex)"
+        : printSidesMode === "recto"
+        ? "Recto seul"
+        : "Verso seul";
+
+    const toastId = toast.loading(
+      `Génération Ultra-HD (300 DPI) de ${targetStudentsToPrint.length} carte(s) [${modeLabel} — ${totalFaces} face(s)]...`
+    );
 
     try {
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
+      // Give React a brief frame if hidden render container just updated
+      await new Promise((r) => setTimeout(r, 150));
+      const capturedFaces = await captureBatchCardsHighDPI();
 
-      const cardsPerPage = 9; // 3 cols x 3 rows grid
-      const cardW = 85.6;
-      const cardH = 54.0;
-      const startX = 20.1;
-      const startY = 24.0;
+      if (capturedFaces.length === 0) {
+        toast.error("Aucune carte trouvée pour l'exportation.", { id: toastId });
+        setPrinting(false);
+        return;
+      }
 
-      // Temporary capture
-      if (printRef.current) {
-        const cardNodes = printRef.current.querySelectorAll<HTMLElement>(".batch-print-card");
-        for (let i = 0; i < cardNodes.length; i++) {
-          const cardNode = cardNodes[i];
-          const canvas = await html2canvas(cardNode, {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: "#ffffff",
-          });
+      const isPortraitCard =
+        renderTemplateStyle === "studio" && studioDesign.orientation === "portrait";
+      const baseMm = CARD_DIMENSIONS[studioDesign.cardType || "CR80"] || CARD_DIMENSIONS.CR80;
+      const cardW = isPortraitCard ? baseMm.mmHeight : baseMm.mmWidth; // 85.6mm landscape, 54mm portrait
+      const cardH = isPortraitCard ? baseMm.mmWidth : baseMm.mmHeight; // 54mm landscape, 85.6mm portrait
 
-          const imgData = canvas.toDataURL("image/png");
+      if (directBrowserPrint) {
+        // Open a dedicated, millimeter-calibrated print window with 300+ DPI PNGs
+        const printWin = window.open("", "_blank", "width=1100,height=800");
+        if (!printWin) {
+          toast.error("Veuillez autoriser les pop-ups pour lancer l'impression directe.", { id: toastId });
+          setPrinting(false);
+          return;
+        }
+
+        const isIndividual = pdfPageFormat === "cr80-individual";
+        const htmlCards = capturedFaces
+          .map(
+            (c) => `
+            <div class="card-item">
+              <img src="${c.imgData}" alt="${c.studentName} - ${c.side}" />
+            </div>`
+          )
+          .join("");
+
+        printWin.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Impression Cartes ID HD - ${modeLabel}</title>
+              <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body {
+                  background: #fff;
+                  font-family: Arial, sans-serif;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                ${
+                  isIndividual
+                    ? `
+                  @page {
+                    size: ${cardW}mm ${cardH}mm;
+                    margin: 0mm;
+                  }
+                  .card-item {
+                    width: ${cardW}mm;
+                    height: ${cardH}mm;
+                    page-break-after: always;
+                    break-after: page;
+                    overflow: hidden;
+                  }
+                  .card-item img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: fill;
+                    display: block;
+                  }
+                `
+                    : `
+                  @page {
+                    size: A4 landscape;
+                    margin: 10mm;
+                  }
+                  .grid-container {
+                    display: grid;
+                    grid-template-columns: repeat(3, ${cardW}mm);
+                    grid-auto-rows: ${cardH}mm;
+                    gap: 4mm;
+                    justify-content: center;
+                  }
+                  .card-item {
+                    width: ${cardW}mm;
+                    height: ${cardH}mm;
+                    border: 0.2mm dashed #cbd5e1;
+                    border-radius: 3mm;
+                    overflow: hidden;
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                  }
+                  .card-item img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: fill;
+                    display: block;
+                  }
+                `
+                }
+              </style>
+            </head>
+            <body>
+              <div class="${isIndividual ? "" : "grid-container"}">
+                ${htmlCards}
+              </div>
+              <script>
+                window.onload = function() {
+                  setTimeout(function() {
+                    window.focus();
+                    window.print();
+                  }, 350);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWin.document.close();
+        toast.success(`Impression haute précision lancée (${capturedFaces.length} face(s)) !`, { id: toastId });
+        setPrinting(false);
+        return;
+      }
+
+      if (pdfPageFormat === "cr80-individual") {
+        // Native CR80 PVC Card Format (1 face per page: Page 1 = Student 1 Recto, Page 2 = Student 1 Verso, etc.)
+        const pdf = new jsPDF({
+          orientation: isPortraitCard ? "portrait" : "landscape",
+          unit: "mm",
+          format: [cardW, cardH],
+          compress: false,
+        });
+
+        capturedFaces.forEach((face, idx) => {
+          if (idx > 0) {
+            pdf.addPage([cardW, cardH], isPortraitCard ? "portrait" : "landscape");
+          }
+          pdf.addImage(face.imgData, "PNG", 0, 0, cardW, cardH, undefined, "FAST");
+        });
+
+        const suffix =
+          targetStudentsToPrint.length === 1
+            ? `${targetStudentsToPrint[0].nomEtudiant || "Eleve"}_${targetStudentsToPrint[0].prenomEtudiant || ""}`
+                .trim()
+                .replace(/\s+/g, "_")
+            : selectedClassFilter !== "ALL"
+            ? `Classe_${selectedClassFilter.replace(/\s+/g, "_")}`
+            : `Lot_${targetStudentsToPrint.length}_Eleves`;
+
+        pdf.save(`Cartes_CR80_${printSidesMode.toUpperCase()}_${suffix}.pdf`);
+      } else {
+        // A4 Sheet Format (Grid with crop marks)
+        const pdf = new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+          compress: false,
+        });
+
+        const cols = isPortraitCard ? 4 : 3;
+        const rows = isPortraitCard ? 2 : 3;
+        const cardsPerPage = cols * rows;
+        const gapX = 4;
+        const gapY = 4;
+        const totalGridW = cols * cardW + (cols - 1) * gapX;
+        const totalGridH = rows * cardH + (rows - 1) * gapY;
+        const startX = Math.max(8, (297 - totalGridW) / 2);
+        const startY = Math.max(8, (210 - totalGridH) / 2);
+
+        capturedFaces.forEach((face, i) => {
           const pageIndex = Math.floor(i / cardsPerPage);
           const cardOnPage = i % cardsPerPage;
-          const col = cardOnPage % 3;
-          const row = Math.floor(cardOnPage / 3);
+          const col = cardOnPage % cols;
+          const row = Math.floor(cardOnPage / cols);
 
-          const posX = startX + col * cardW;
-          const posY = startY + row * cardH;
+          const posX = startX + col * (cardW + gapX);
+          const posY = startY + row * (cardH + gapY);
 
           if (cardOnPage === 0 && pageIndex > 0) {
             pdf.addPage("a4", "landscape");
           }
 
-          pdf.addImage(imgData, "PNG", posX, posY, cardW, cardH);
-          pdf.setDrawColor(220, 225, 230);
+          // Header label on each A4 sheet
+          if (cardOnPage === 0) {
+            pdf.setFontSize(8);
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(
+              `Planche A4 HD (300 DPI) • Mode: ${modeLabel} • Page ${pageIndex + 1} • Format carte: ${cardW}x${cardH}mm`,
+              startX,
+              Math.max(5, startY - 3)
+            );
+          }
+
+          pdf.addImage(face.imgData, "PNG", posX, posY, cardW, cardH, undefined, "FAST");
+          pdf.setDrawColor(203, 213, 225);
           pdf.setLineWidth(0.15);
           pdf.rect(posX, posY, cardW, cardH);
-        }
+
+          // Tiny side indicator below card on A4 sheet
+          pdf.setFontSize(5.5);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(
+            `${face.studentName} (${face.side.toUpperCase()})`,
+            posX + 1,
+            posY + cardH + 2.2
+          );
+        });
+
+        const suffix =
+          targetStudentsToPrint.length === 1
+            ? `${targetStudentsToPrint[0].nomEtudiant || "Eleve"}`.replace(/\s+/g, "_")
+            : selectedClassFilter !== "ALL"
+            ? `Classe_${selectedClassFilter.replace(/\s+/g, "_")}`
+            : `Lot_${targetStudentsToPrint.length}_Eleves`;
+
+        pdf.save(`Planche_A4_${printSidesMode.toUpperCase()}_${suffix}.pdf`);
       }
 
-      pdf.save(`Cartes_ID_Batch_${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast.success(`Document PDF généré avec succès ! (${listToPrint.length} carte(s))`, { id: toastId });
+      toast.success(
+        `PDF Haute Précision (${modeLabel}) généré avec succès ! (${targetStudentsToPrint.length} élève(s), ${capturedFaces.length} face(s))`,
+        { id: toastId }
+      );
     } catch (err: any) {
       console.error("Print Error:", err);
-      toast.error("Erreur lors de la génération PDF", { id: toastId });
+      toast.error("Erreur lors de la génération PDF HD", { id: toastId });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Export High-Resolution PNG Images (Recto & Verso)
+  const handleExportHighDPImages = async () => {
+    if (targetStudentsToPrint.length === 0) {
+      toast.error("Veuillez sélectionner au moins un élève.");
+      return;
+    }
+    setPrinting(true);
+    const toastId = toast.loading("Exportation des images PNG Ultra-HD (300+ DPI)...");
+    try {
+      await new Promise((r) => setTimeout(r, 150));
+      const capturedFaces = await captureBatchCardsHighDPI();
+      for (const face of capturedFaces) {
+        const link = document.createElement("a");
+        const safeName = face.studentName.replace(/[^a-zA-Z0-9_-]/g, "_");
+        link.download = `Carte_${safeName}_${face.side.toUpperCase()}_300DPI.png`;
+        link.href = face.imgData;
+        link.click();
+        await new Promise((r) => setTimeout(r, 180));
+      }
+      toast.success(`${capturedFaces.length} image(s) PNG Ultra-HD téléchargée(s) !`, { id: toastId });
+    } catch (err) {
+      console.error("Image export error:", err);
+      toast.error("Erreur lors de l'exportation d'image HD", { id: toastId });
     } finally {
       setPrinting(false);
     }
@@ -385,8 +729,8 @@ export default function CardStudioContainer() {
       />
 
       {/* Top Header Bar with Main Tabs */}
-      <header className="h-16 bg-white dark:bg-[#131622] border-b border-slate-200/80 dark:border-slate-800 px-8 flex items-center justify-between z-30 shadow-sm">
-        <div className="flex items-center gap-4">
+      <header className="h-16 bg-white dark:bg-[#131622] border-b border-slate-200/80 dark:border-slate-800 px-6 flex items-center justify-between z-30 shadow-sm">
+        <div className="flex items-center gap-3.5">
           <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-100 dark:shadow-none flex items-center justify-center">
             <CreditCard size={20} />
           </div>
@@ -394,11 +738,11 @@ export default function CardStudioContainer() {
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-none">Studio Cartes ID</h1>
               <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Pro
+                Pro Recto-Verso
               </span>
             </div>
             <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-0.5">
-              Conception, gestion des données et impression HD 300 DPI
+              Génération par classe ou élève • Export PDF & Image Ultra-HD 300+ DPI
             </p>
           </div>
         </div>
@@ -407,7 +751,7 @@ export default function CardStudioContainer() {
         <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
           <button
             onClick={() => setActiveTab("design")}
-            className={`px-5 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
               activeTab === "design"
                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none"
                 : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
@@ -417,7 +761,7 @@ export default function CardStudioContainer() {
           </button>
           <button
             onClick={() => setActiveTab("données")}
-            className={`px-5 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
               activeTab === "données"
                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none"
                 : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
@@ -427,44 +771,146 @@ export default function CardStudioContainer() {
           </button>
           <button
             onClick={() => setActiveTab("impression")}
-            className={`px-5 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
               activeTab === "impression"
                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none"
                 : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
             }`}
           >
-            <Printer size={14} /> Impression ({selectedStudentIds.length || 1})
+            <Printer size={14} /> Impression & Export HD ({targetStudentsToPrint.length})
           </button>
         </div>
 
-        {/* Action Button */}
-        <div className="flex items-center gap-3">
+        {/* Quick Recto-Verso PDF & Print Action Buttons */}
+        <div className="flex items-center gap-2">
+          <div className="hidden xl:flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-black">
+            <button
+              onClick={() => setPrintSidesMode("recto-verso")}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                printSidesMode === "recto-verso"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400"
+              }`}
+              title="Exporter/Imprimer Recto et Verso"
+            >
+              Recto-Verso
+            </button>
+            <button
+              onClick={() => setPrintSidesMode("recto")}
+              className={`px-2 py-1.5 rounded-lg transition ${
+                printSidesMode === "recto"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              Recto
+            </button>
+            <button
+              onClick={() => setPrintSidesMode("verso")}
+              className={`px-2 py-1.5 rounded-lg transition ${
+                printSidesMode === "verso"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              Verso
+            </button>
+          </div>
+
           <Button
-            onClick={handleBatchPrint}
+            onClick={() => handleBatchPrintPDF(false)}
             disabled={printing}
-            className="h-10 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
+            className="h-10 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
           >
-            {printing ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
-            {printing ? "Génération PDF..." : `Imprimer les cartes (${selectedStudentIds.length || 1})`}
+            {printing ? <RefreshCw size={15} className="animate-spin" /> : <FileDown size={15} />}
+            {printing
+              ? "Génération HD..."
+              : `PDF ${printSidesMode === "recto-verso" ? "Recto-Verso" : printSidesMode.toUpperCase()} (${targetStudentsToPrint.length})`}
+          </Button>
+
+          <Button
+            onClick={() => handleBatchPrintPDF(true)}
+            disabled={printing}
+            variant="outline"
+            className="h-10 px-3.5 rounded-2xl border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-black text-xs flex items-center gap-1.5"
+            title="Imprimer directement en haute précision 300 DPI"
+          >
+            <Printer size={15} /> Imprimer
           </Button>
         </div>
       </header>
 
       {/* Main Container Layout: Left Student Selection Panel + Tab View */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: SÉLECTION DES ÉLÈVES */}
+        {/* Left Sidebar: SÉLECTION DES ÉLÈVES & CLASSES */}
         <aside className="w-80 bg-white dark:bg-[#131622] border-r border-slate-200/80 dark:border-slate-800 flex flex-col h-full z-20 shadow-sm">
           {/* Sidebar Header & Counter */}
-          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
-              Sélection des élèves
+              <Users size={14} className="text-indigo-600" /> Élèves & Classes
             </h3>
-            <span className="text-[10px] font-black px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-100 dark:border-indigo-800">
-              {selectedStudentIds.length} sél.
-            </span>
+            <div className="flex items-center gap-1.5">
+              {selectedStudentIds.length > 0 && (
+                <button
+                  onClick={() => {
+                    setSelectedStudentIds([]);
+                    setPrintScope("single");
+                  }}
+                  className="text-[10px] font-bold text-rose-600 hover:underline px-1.5 py-0.5"
+                  title="Réinitialiser la sélection"
+                >
+                  Vider
+                </button>
+              )}
+              <span className="text-[10px] font-black px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-100 dark:border-indigo-800">
+                {selectedStudentIds.length} sél.
+              </span>
+            </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Class Selector & 1-Click Whole Class Generation */}
+          <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
+                Filtrer / Générer par Classe
+              </label>
+              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                {availableClasses.length} classe(s)
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedClassFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedClassFilter(val);
+                  if (filterType === "selected" && selectedStudentIds.length === 0) {
+                    setFilterType("all");
+                  }
+                }}
+                className="flex-1 h-9 px-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-xs font-black text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="ALL">Toutes les classes ({students.length})</option>
+                {availableClasses.map((cls) => {
+                  const count = students.filter((s) => String(s.classe || "").trim() === cls).length;
+                  return (
+                    <option key={cls} value={cls}>
+                      {cls} ({count} élève{count > 1 ? "s" : ""})
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                onClick={() => handleSelectEntireClass(selectedClassFilter)}
+                className="h-9 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black whitespace-nowrap shadow-sm transition flex items-center gap-1"
+                title="Sélectionner toute cette classe pour générer toutes ses cartes"
+              >
+                <Check size={12} /> Toute la classe
+              </button>
+            </div>
+          </div>
+
+          {/* Search Bar & Filter Chips */}
           <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-[#131622]">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
@@ -482,7 +928,9 @@ export default function CardStudioContainer() {
               <button
                 onClick={() => setFilterType("all")}
                 className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition ${
-                  filterType === "all" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  filterType === "all"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Tous ({students.length})
@@ -490,7 +938,9 @@ export default function CardStudioContainer() {
               <button
                 onClick={() => setFilterType("selected")}
                 className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition ${
-                  filterType === "selected" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  filterType === "selected"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Sél. ({selectedStudentIds.length})
@@ -498,10 +948,12 @@ export default function CardStudioContainer() {
               <button
                 onClick={() => setFilterType("no-photo")}
                 className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition ${
-                  filterType === "no-photo" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  filterType === "no-photo"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
-                Sans photo
+                Sans photo ({countNoPhoto})
               </button>
             </div>
           </div>
@@ -511,15 +963,30 @@ export default function CardStudioContainer() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={filteredStudents.length > 0 && selectedStudentIds.length === filteredStudents.length}
+                checked={
+                  filteredStudents.length > 0 &&
+                  filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+                }
                 onChange={toggleSelectAll}
                 className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Tout sélectionner</span>
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Tout sélectionner ({filteredStudents.length})
+              </span>
             </label>
-            <span className="text-[10px] font-mono font-bold text-slate-400">
-              {filteredStudents.length} élèves
-            </span>
+            <button
+              onClick={() => {
+                if (activeStudent) {
+                  setSelectedStudentIds([activeStudent.id]);
+                  setPrintScope("single");
+                  toast.info(`Mode Élève unique : ${activeStudent.nomEtudiant}`);
+                }
+              }}
+              className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline"
+              title="Sélectionner uniquement l'élève actif"
+            >
+              1 Élève seul
+            </button>
           </div>
 
           {/* Student Items List */}
@@ -529,8 +996,24 @@ export default function CardStudioContainer() {
                 Chargement de la liste des élèves...
               </div>
             ) : filteredStudents.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs font-bold">
-                Aucun élève trouvé.
+              <div className="p-6 text-center space-y-3">
+                <p className="text-slate-400 text-xs font-bold">
+                  {filterType === "selected"
+                    ? "Aucun élève n'est encore coché dans la sélection."
+                    : "Aucun élève trouvé pour ce filtre."}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setFilterType("all");
+                    setSelectedClassFilter("ALL");
+                    setSearchQuery("");
+                  }}
+                  className="rounded-xl text-xs font-black border-indigo-200 text-indigo-600"
+                >
+                  Afficher tous les élèves ({students.length})
+                </Button>
               </div>
             ) : (
               filteredStudents.map((st) => {
@@ -553,8 +1036,7 @@ export default function CardStudioContainer() {
                         : "bg-white dark:bg-slate-900/60 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {/* Checkbox */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -565,13 +1047,14 @@ export default function CardStudioContainer() {
                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0"
                       />
 
-                      {/* Student Avatar */}
                       <div className="relative w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                         {hasPhoto && photoUrl ? (
                           <img
                             src={photoUrl}
                             alt={st.nomEtudiant}
-                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = "none";
+                            }}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -581,9 +1064,14 @@ export default function CardStudioContainer() {
                         )}
                       </div>
 
-                      {/* Student Info */}
                       <div className="min-w-0 flex-1">
-                        <p className={`text-xs font-black truncate leading-snug ${isPreviewing ? "text-indigo-950 dark:text-indigo-200" : "text-slate-900 dark:text-slate-100"}`}>
+                        <p
+                          className={`text-xs font-black truncate leading-snug ${
+                            isPreviewing
+                              ? "text-indigo-950 dark:text-indigo-200"
+                              : "text-slate-900 dark:text-slate-100"
+                          }`}
+                        >
                           {st.nomEtudiant} {st.prenomEtudiant}
                         </p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate">
@@ -611,19 +1099,26 @@ export default function CardStudioContainer() {
 
         {/* Right Main Content Panel (Design | Données | Impression) */}
         <main className="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-[#0b0d14]">
-          {activeTab === "design" ? (
+          {/* Keep CardDesigner mounted so custom designs & active preset persist across tabs */}
+          <div className={activeTab === "design" ? "flex-1 flex flex-col overflow-hidden" : "hidden"}>
             <CardDesigner
               externalStudents={students}
               externalPreviewStudentId={previewStudentId}
               onExternalPreviewStudentChange={setPreviewStudentId}
               externalActiveBranch={activeBranch}
+              onOpenBatchPrintHub={() => setActiveTab("impression")}
+              onDesignStateChange={handleDesignStateChange}
             />
-          ) : activeTab === "données" ? (
+          </div>
+
+          {activeTab === "données" && (
             /* Tab 2: Students Data Table & Photo Management */
             <div className="flex-1 overflow-y-auto p-8 space-y-6">
               <div className="bg-white dark:bg-[#131622] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Données des élèves pour les cartes d'identité</h3>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Données des élèves pour les cartes d'identité
+                  </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Gérez les photos, matricules et vérifiez l'état de préparation des cartes scolaires.
                   </p>
@@ -659,9 +1154,15 @@ export default function CardStudioContainer() {
                             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex-shrink-0 flex items-center justify-center border border-slate-200 dark:border-slate-700">
                               {hasPhoto && st.photoPath ? (
                                 <img
-                                  src={st.photoPath.startsWith("http") ? st.photoPath : `/api/files?path=${encodeURIComponent(st.photoPath)}`}
+                                  src={
+                                    st.photoPath.startsWith("http") || st.photoPath.startsWith("data:")
+                                      ? st.photoPath
+                                      : `/api/files?path=${encodeURIComponent(st.photoPath)}`
+                                  }
                                   alt={st.nomEtudiant}
-                                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                  }}
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
@@ -670,7 +1171,9 @@ export default function CardStudioContainer() {
                                 </div>
                               )}
                             </div>
-                            <span className="font-bold text-slate-900 dark:text-white">{st.nomEtudiant} {st.prenomEtudiant}</span>
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {st.nomEtudiant} {st.prenomEtudiant}
+                            </span>
                           </td>
                           <td className="py-3 px-4 font-mono font-bold">{st.numAdmission || "N/A"}</td>
                           <td className="py-3 px-4">{st.classe || "Non assignée"}</td>
@@ -716,44 +1219,225 @@ export default function CardStudioContainer() {
                 </table>
               </div>
             </div>
-          ) : (
-            /* Tab 3: HD 300 DPI Batch Print Preview Hub */
-            <div className="flex-1 overflow-y-auto p-8 space-y-6" ref={printRef}>
-              <div className="bg-white dark:bg-[#131622] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          )}
+
+          {/* Always-mounted Print & Export Hub (visible in "impression" tab, offscreen when in "design"/"données" so top-bar PDF button always works) */}
+          <div
+            className={
+              activeTab === "impression"
+                ? "flex-1 overflow-y-auto p-6 space-y-6"
+                : "fixed -left-[9999px] top-0 w-[1280px] overflow-hidden pointer-events-none opacity-0"
+            }
+          >
+            {/* Control Deck for Batch & Single Recto-Verso Printing */}
+            <div className="bg-white dark:bg-[#131622] rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Aperçu avant impression HD (300 DPI)</h3>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                      Centre d'Exportation PDF & Impression Haute Précision (300+ DPI)
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      Recto-Verso Automatique
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Grille d'impression CR80 Standard (85.6 × 54 mm) format A4 Paysage.
+                    Modèle actif : <strong className="text-indigo-600 dark:text-indigo-400">{studioDesign.templateName}</strong> •{" "}
+                    {targetStudentsToPrint.length} élève(s) ciblé(s) × {targetSides.length} face(s) ={" "}
+                    <strong>{targetStudentsToPrint.length * targetSides.length} face(s) HD</strong>
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Primary Export & Print Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5">
                   <Button
-                    onClick={handleBatchPrint}
+                    onClick={handleExportHighDPImages}
+                    disabled={printing}
+                    variant="outline"
+                    className="h-10 px-4 rounded-2xl border-slate-200 dark:border-slate-700 font-black text-xs flex items-center gap-2"
+                  >
+                    <ImageIcon size={15} className="text-indigo-600" /> Images PNG (300 DPI)
+                  </Button>
+                  <Button
+                    onClick={() => handleBatchPrintPDF(true)}
+                    disabled={printing}
+                    variant="outline"
+                    className="h-10 px-4 rounded-2xl border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-black text-xs flex items-center gap-2"
+                  >
+                    <Printer size={15} /> Imprimer Directement
+                  </Button>
+                  <Button
+                    onClick={() => handleBatchPrintPDF(false)}
                     disabled={printing}
                     className="h-10 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
                   >
-                    <Printer size={16} /> Imprimer {selectedStudents.length || 1} carte(s)
+                    {printing ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
+                    Télécharger PDF {printSidesMode === "recto-verso" ? "Recto-Verso" : printSidesMode.toUpperCase()} (300 DPI)
                   </Button>
                 </div>
               </div>
 
-              {/* High Resolution Print Grid Container */}
-              <div className="bg-white dark:bg-[#131622] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl p-8 flex flex-col items-center">
-                <div className="grid grid-cols-3 gap-6 max-w-5xl">
-                  {(selectedStudents.length > 0 ? selectedStudents : (activeStudent ? [activeStudent] : [])).map((st) => (
-                    <div key={st.id} className="batch-print-card shadow-md rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:scale-105 transition-transform">
-                      <StudentCard
-                        student={st}
-                        schoolName={activeBranch?.nomBranch || activeBranch?.branchName || "CES BOURJA MARADI"}
-                        academicYear="2025-2026"
-                        side={cardSide}
-                      />
-                    </div>
-                  ))}
+              {/* 4-Column Configuration Bar: Cible | Faces (Recto-Verso) | Format PDF | Style */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                {/* 1. Scope: Single Student vs Whole Class vs Selected */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                    1. Lot à générer
+                  </label>
+                  <select
+                    value={printScope}
+                    onChange={(e) => setPrintScope(e.target.value as any)}
+                    className="w-full h-9 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="auto">
+                      Automatique ({targetStudentsToPrint.length} élève{targetStudentsToPrint.length > 1 ? "s" : ""})
+                    </option>
+                    <option value="single">
+                      Élève unique ({activeStudent?.nomEtudiant || "Actif"})
+                    </option>
+                    <option value="class">
+                      Toute la classe ({selectedClassFilter !== "ALL" ? selectedClassFilter : activeStudent?.classe || "Classe"})
+                    </option>
+                    <option value="selected">
+                      Élèves cochés ({selectedStudents.length})
+                    </option>
+                  </select>
+                </div>
+
+                {/* 2. Side Mode: Recto-Verso Duplex vs Recto vs Verso */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                    2. Faces d'impression
+                  </label>
+                  <select
+                    value={printSidesMode}
+                    onChange={(e) => setPrintSidesMode(e.target.value as any)}
+                    className="w-full h-9 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300"
+                  >
+                    <option value="recto-verso">Recto + Verso (Duplex Complet)</option>
+                    <option value="recto">Recto uniquement (Face Avant)</option>
+                    <option value="verso">Verso uniquement (Face Arrière)</option>
+                  </select>
+                </div>
+
+                {/* 3. Output Format: CR80 Card Printer vs A4 Sheet */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                    3. Format du fichier PDF
+                  </label>
+                  <select
+                    value={pdfPageFormat}
+                    onChange={(e) => setPdfPageFormat(e.target.value as any)}
+                    className="w-full h-9 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="cr80-individual">Carte PVC CR80 (85.6×54mm • 1 face/page)</option>
+                    <option value="a4-grid">Planche A4 Paysage (Grille multi-cartes)</option>
+                  </select>
+                </div>
+
+                {/* 4. Template Style */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/70 dark:border-slate-800">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                    4. Modèle Graphique
+                  </label>
+                  <select
+                    value={renderTemplateStyle}
+                    onChange={(e) => setRenderTemplateStyle(e.target.value as any)}
+                    className="w-full h-9 px-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="studio">Modèle Studio Actif ({studioDesign.templateName})</option>
+                    <option value="classic">Carte Académique Classique</option>
+                  </select>
                 </div>
               </div>
             </div>
-          )}
+
+            {/* High Resolution Print Grid Container */}
+            <div
+              ref={printRef}
+              className="bg-white dark:bg-[#131622] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl p-8 flex flex-col items-center space-y-6"
+            >
+              {targetStudentsToPrint.map((st, idx) => {
+                const fullName = `${st.nomEtudiant || ""} ${st.prenomEtudiant || ""}`.trim();
+                return (
+                  <div
+                    key={st.id}
+                    className="w-full max-w-5xl p-5 rounded-3xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-3"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-[11px] flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">{fullName}</span>
+                        <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-lg">
+                          {st.numAdmission || "N/A"}
+                        </span>
+                        <span className="text-xs font-bold text-slate-500">
+                          • Classe : {st.classe || "N/A"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        {printSidesMode === "recto-verso" ? "Recto + Verso (Duplex)" : printSidesMode.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-8 pt-2">
+                      {targetSides.map((side) => (
+                        <div key={`${st.id}-${side}`} className="flex flex-col items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {side === "recto" ? "FACE AVANT (RECTO)" : "FACE ARRIÈRE (VERSO)"}
+                          </span>
+
+                          {/* Exact DOM node captured at scale: 4 (300+ DPI) */}
+                          <div
+                            data-student-name={fullName}
+                            data-matricule={st.numAdmission || ""}
+                            data-classe={st.classe || ""}
+                            data-side={side}
+                            className="batch-print-card-face shadow-lg rounded-2xl overflow-hidden bg-white"
+                          >
+                            {renderTemplateStyle === "studio" ? (
+                              <CardCanvas
+                                elements={
+                                  side === "recto"
+                                    ? studioDesign.rectoElements
+                                    : studioDesign.versoElements
+                                }
+                                selectedId={null}
+                                onSelect={() => {}}
+                                onUpdateElement={() => {}}
+                                cardType={studioDesign.cardType}
+                                orientation={studioDesign.orientation}
+                                zoom={135}
+                                showGrid={false}
+                                showRulers={false}
+                                snapToGrid={false}
+                                activeStudent={st}
+                                activeBranch={activeBranch}
+                                readOnly={true}
+                              />
+                            ) : (
+                              <StudentCard
+                                student={st}
+                                schoolName={
+                                  activeBranch?.nomBranch ||
+                                  activeBranch?.branchName ||
+                                  "CES BOURJA MARADI"
+                                }
+                                academicYear="2025-2026"
+                                side={side}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </main>
       </div>
     </div>

@@ -24,7 +24,7 @@ interface CardTopToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onExport: (format: "pdf" | "png" | "jpeg" | "json") => void;
+  onExport: (format: "pdf" | "pdf-duplex" | "png" | "jpeg" | "json") => void;
   onImportJSON: (json: any) => void;
   onSave: () => void;
   saving?: boolean;
@@ -224,15 +224,16 @@ export default function CardTopToolbar({
         </Button>
 
         <Select onValueChange={(fmt) => onExport(fmt as any)}>
-          <SelectTrigger className="h-8 w-24 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] shadow-sm">
-            <Download size={12} className="mr-1 text-slate-500 dark:text-slate-400" />
-            <SelectValue placeholder="Export" />
+          <SelectTrigger className="h-8 w-36 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] shadow-sm">
+            <Download size={12} className="mr-1 text-indigo-600 dark:text-indigo-400" />
+            <SelectValue placeholder="Exporter HD" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="pdf">PDF (300 DPI)</SelectItem>
-            <SelectItem value="png">PNG HD</SelectItem>
-            <SelectItem value="jpeg">JPEG</SelectItem>
-            <SelectItem value="json">JSON</SelectItem>
+            <SelectItem value="pdf-duplex">PDF Recto-Verso (300 DPI)</SelectItem>
+            <SelectItem value="pdf">PDF Face Actuelle (300 DPI)</SelectItem>
+            <SelectItem value="png">Image PNG Ultra-HD</SelectItem>
+            <SelectItem value="jpeg">Image JPEG HD</SelectItem>
+            <SelectItem value="json">Modèle JSON</SelectItem>
           </SelectContent>
         </Select>
 

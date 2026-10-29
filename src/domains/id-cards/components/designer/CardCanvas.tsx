@@ -22,6 +22,7 @@ interface CardCanvasProps {
   snapToGrid: boolean;
   activeStudent?: any;
   activeBranch?: any;
+  readOnly?: boolean;
 }
 
 export default function CardCanvas({
@@ -37,6 +38,7 @@ export default function CardCanvas({
   snapToGrid,
   activeStudent,
   activeBranch,
+  readOnly = false,
 }: CardCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [snapLines, setSnapLines] = useState<{ x?: number; y?: number }>({});
@@ -220,20 +222,21 @@ export default function CardCanvas({
     return <User {...props} />;
   };
 
-  return (
-    <div className="relative flex-1 overflow-auto bg-slate-200/80 dark:bg-[#08090f] p-8 flex items-center justify-center select-none" onClick={() => onSelect(null)}>
-      {/* WYSIWYG CR80 Card Canvas Sheet */}
-      <div
-        ref={canvasRef}
-        style={{
-          width: cardWidth * scale,
-          height: cardHeight * scale,
-          borderRadius: 16 * scale,
-        }}
-        className={`relative bg-white shadow-2xl transition-all border border-slate-300 dark:border-slate-700 overflow-hidden ${
-          showGrid ? "bg-grid-pattern" : ""
-        }`}
-      >
+  const sheetContent = (
+    <div
+      id={readOnly ? undefined : "card-studio-active-canvas"}
+      ref={canvasRef}
+      style={{
+        width: cardWidth * scale,
+        height: cardHeight * scale,
+        borderRadius: 14 * scale,
+      }}
+      className={`card-studio-canvas-sheet relative bg-white transition-all overflow-hidden ${
+        readOnly
+          ? "border border-slate-200"
+          : `shadow-2xl border border-slate-300 dark:border-slate-700 ${showGrid ? "bg-grid-pattern" : ""}`
+      }`}
+    >
         {/* Alignment Snap Lines */}
         {snapLines.x !== undefined && (
           <div className="absolute top-0 bottom-0 border-r-2 border-dashed border-rose-500 z-50 pointer-events-none" style={{ left: snapLines.x * scale }} />
@@ -256,10 +259,10 @@ export default function CardCanvas({
             else if (el.variableKey === "{{section}}") contentStr = activeStudent?.section || "Général";
             else if (el.variableKey === "{{gender}}") contentStr = activeStudent?.sexe || "Masculin";
             else if (el.variableKey === "{{birth_date}}") contentStr = activeStudent?.dateNaissance || "14/05/2012";
-            else if (el.variableKey === "{{birth_place}}") contentStr = activeStudent?.lieuNaissance || "Niamey";
+            else if (el.variableKey === "{{birth_place}}") contentStr = activeStudent?.lieuNaissance || "Maradi";
             else if (el.variableKey === "{{blood_type}}") contentStr = activeStudent?.groupeSanguin || "O+";
-            else if (el.variableKey === "{{phone}}") contentStr = activeStudent?.telephone || "+227 90 00 00 00";
-            else if (el.variableKey === "{{guardian}}") contentStr = activeStudent?.tuteur || "M. Sow Ibrahim";
+            else if (el.variableKey === "{{phone}}") contentStr = activeStudent?.whatsapp || activeStudent?.mobile || activeStudent?.phoneFixe || activeStudent?.telTuteur || activeStudent?.telephone || "+227 90 00 00 00";
+            else if (el.variableKey === "{{guardian}}") contentStr = activeStudent?.nomPere || activeStudent?.tuteur || "Parent d'élève";
             else if (el.variableKey === "{{address}}") contentStr = activeStudent?.adresse || "Maradi, République du Niger";
             else if (el.variableKey === "{{school_name}}") {
               const rawBranchName = activeBranch?.nomBranch || activeBranch?.branchName || activeBranch?.name || "";
@@ -309,7 +312,7 @@ export default function CardCanvas({
           return (
             <div
               key={el.id}
-              onPointerDown={(e) => handlePointerDown(e, el)}
+              onPointerDown={readOnly ? undefined : (e) => handlePointerDown(e, el)}
               style={{
                 position: "absolute",
                 left: el.x * scale,
@@ -320,9 +323,13 @@ export default function CardCanvas({
                 opacity: el.opacity ?? 1,
                 zIndex: el.zIndex,
               }}
-              className={`group cursor-move transition-shadow ${
-                isSelected ? "ring-2 ring-indigo-600 ring-offset-2" : "hover:ring-1 hover:ring-indigo-300"
-              }`}
+              className={
+                readOnly
+                  ? ""
+                  : `group cursor-move transition-shadow ${
+                      isSelected ? "ring-2 ring-indigo-600 ring-offset-2" : "hover:ring-1 hover:ring-indigo-300"
+                    }`
+              }
             >
               {/* Element Content Box */}
               <div
@@ -479,7 +486,16 @@ export default function CardCanvas({
             </div>
           );
         })}
-      </div>
+    </div>
+  );
+
+  if (readOnly) {
+    return sheetContent;
+  }
+
+  return (
+    <div className="relative flex-1 overflow-auto bg-slate-200/80 dark:bg-[#08090f] p-8 flex items-center justify-center select-none" onClick={() => onSelect(null)}>
+      {sheetContent}
     </div>
   );
 }

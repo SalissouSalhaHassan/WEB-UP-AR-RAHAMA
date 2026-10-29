@@ -197,6 +197,14 @@ interface CardDesignerProps {
   externalPreviewStudentId?: number | null;
   onExternalPreviewStudentChange?: (id: number) => void;
   externalActiveBranch?: any;
+  onOpenBatchPrintHub?: () => void;
+  onDesignStateChange?: (design: {
+    rectoElements: CardElement[];
+    versoElements: CardElement[];
+    cardType: any;
+    orientation: any;
+    templateName: string;
+  }) => void;
 }
 
 export default function CardDesigner({
@@ -204,6 +212,8 @@ export default function CardDesigner({
   externalPreviewStudentId,
   onExternalPreviewStudentChange,
   externalActiveBranch,
+  onOpenBatchPrintHub,
+  onDesignStateChange,
 }: CardDesignerProps = {}) {
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
@@ -259,6 +269,18 @@ export default function CardDesigner({
     orientation: SMART_CARD_PRESETS[0].orientation,
     templateName: SMART_CARD_PRESETS[0].name,
   });
+
+  useEffect(() => {
+    if (onDesignStateChange) {
+      onDesignStateChange({
+        rectoElements,
+        versoElements,
+        cardType,
+        orientation,
+        templateName,
+      });
+    }
+  }, [rectoElements, versoElements, cardType, orientation, templateName, onDesignStateChange]);
 
   const handleApplyPreset = (preset: SmartCardPreset) => {
     loadCardDesign({
@@ -341,13 +363,33 @@ export default function CardDesigner({
     }
   };
 
-  const handleExport = (format: "pdf" | "png" | "jpeg" | "json") => {
-    if (format === "pdf") {
-      exportCardToPDF(cardType, orientation, templateName);
+  const handleExport = async (format: "pdf" | "pdf-duplex" | "png" | "jpeg" | "json") => {
+    const studentNameSuffix = activeStudent
+      ? `${activeStudent.nomEtudiant || ""}_${activeStudent.prenomEtudiant || ""}`.trim()
+      : templateName;
+
+    if (format === "pdf-duplex") {
+      const toastId = toast.loading("Génération du PDF Recto-Verso HD (300 DPI) en cours...");
+      await exportCardToPDF(cardType, orientation, studentNameSuffix, {
+        includeVerso: true,
+        currentSide: activeSide,
+        onSwitchSide: async (side) => {
+          setActiveSide(side);
+          await new Promise((r) => setTimeout(r, 250));
+        },
+      });
+      toast.success("PDF Recto-Verso HD (300 DPI) téléchargé avec succès !", { id: toastId });
+    } else if (format === "pdf") {
+      const toastId = toast.loading("Génération du PDF HD (300 DPI)...");
+      await exportCardToPDF(cardType, orientation, `${studentNameSuffix}_${activeSide.toUpperCase()}`);
+      toast.success("PDF HD (300 DPI) téléchargé avec succès !", { id: toastId });
     } else if (format === "png" || format === "jpeg") {
-      exportCardToImage(format, templateName);
+      const toastId = toast.loading(`Exportation de l'image ${format.toUpperCase()} Ultra-HD...`);
+      await exportCardToImage(format, `${studentNameSuffix}_${activeSide.toUpperCase()}`);
+      toast.success(`Image ${format.toUpperCase()} Ultra-HD téléchargée !`, { id: toastId });
     } else if (format === "json") {
       exportCardToJSON(rectoElements, versoElements, cardType, orientation, templateName);
+      toast.success("Modèle JSON exporté !");
     }
   };
 
@@ -394,7 +436,13 @@ export default function CardDesigner({
         saving={saving}
         templateName={templateName}
         onTemplateNameChange={setTemplateName}
-        onBatchPrintClick={() => setShowBatchModal(true)}
+        onBatchPrintClick={() => {
+          if (onOpenBatchPrintHub) {
+            onOpenBatchPrintHub();
+          } else {
+            setShowBatchModal(true);
+          }
+        }}
         students={effectiveStudents}
         previewStudentId={effectivePreviewId}
         onPreviewStudentChange={handlePreviewStudentChange}
