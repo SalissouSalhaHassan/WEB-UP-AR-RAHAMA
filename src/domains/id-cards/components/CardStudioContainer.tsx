@@ -16,9 +16,9 @@ import CardDesigner from "./designer/CardDesigner";
 import CardCanvas from "./designer/CardCanvas";
 import { SMART_CARD_PRESETS } from "./designer/cardSmartPresets";
 import { CardElement, CARD_DIMENSIONS, CardSize, Orientation } from "./designer/types";
+import { renderCardElementsToDataURL } from "./designer/cardExportEngine";
 import { StudentCard } from "./StudentCard";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
 const SAMPLE_STUDENTS = [
   // --- CI A ---
@@ -403,12 +403,8 @@ export default function CardStudioContainer() {
     return ["recto"];
   }, [printSidesMode]);
 
-  // Capture all rendered batch card faces at Ultra-HD 300+ DPI (scale: 4)
+  // Render all batch card faces at Ultra-HD 384 DPI (scale: 4) using Native Canvas 2D Engine
   const captureBatchCardsHighDPI = async () => {
-    if (!printRef.current) return [];
-    const cardNodes = Array.from(
-      printRef.current.querySelectorAll<HTMLElement>(".batch-print-card-face")
-    );
     const captured: {
       imgData: string;
       studentName: string;
@@ -417,23 +413,43 @@ export default function CardStudioContainer() {
       side: "recto" | "verso";
     }[] = [];
 
-    for (let i = 0; i < cardNodes.length; i++) {
-      const node = cardNodes[i];
-      await waitForImagesInNode(node);
-      const canvas = await html2canvas(node, {
-        scale: 4, // Ultra-HD > 300 DPI precision
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-      captured.push({
-        imgData: canvas.toDataURL("image/png", 1.0),
-        studentName: node.dataset.studentName || `Eleve_${i + 1}`,
-        matricule: node.dataset.matricule || "",
-        classe: node.dataset.classe || "",
-        side: (node.dataset.side as "recto" | "verso") || "recto",
-      });
+    const activeRecto =
+      renderTemplateStyle === "studio"
+        ? studioDesign.rectoElements
+        : SMART_CARD_PRESETS[0].rectoElements;
+    const activeVerso =
+      renderTemplateStyle === "studio"
+        ? studioDesign.versoElements
+        : SMART_CARD_PRESETS[0].versoElements;
+    const activeCardType =
+      renderTemplateStyle === "studio" ? studioDesign.cardType : "CR80";
+    const activeOrientation =
+      renderTemplateStyle === "studio" ? studioDesign.orientation : "landscape";
+
+    for (let i = 0; i < targetStudentsToPrint.length; i++) {
+      const st = targetStudentsToPrint[i];
+      const fullName = `${st.nomEtudiant || ""} ${st.prenomEtudiant || ""}`.trim() || `Eleve_${i + 1}`;
+
+      for (const side of targetSides) {
+        const elementsToRender = side === "recto" ? activeRecto : activeVerso;
+        const imgData = await renderCardElementsToDataURL({
+          elements: elementsToRender,
+          cardType: activeCardType,
+          orientation: activeOrientation,
+          activeStudent: st,
+          activeBranch,
+          scale: 4, // 384 DPI crisp native canvas rendering
+          format: "png",
+        });
+
+        captured.push({
+          imgData,
+          studentName: fullName,
+          matricule: st.numAdmission || "",
+          classe: st.classe || "",
+          side,
+        });
+      }
     }
     return captured;
   };
@@ -593,7 +609,7 @@ export default function CardStudioContainer() {
           if (idx > 0) {
             pdf.addPage([cardW, cardH], isPortraitCard ? "portrait" : "landscape");
           }
-          pdf.addImage(face.imgData, "PNG", 0, 0, cardW, cardH, undefined, "FAST");
+          pdf.addImage(face.imgData, "PNG", 0, 0, cardW, cardH);
         });
 
         const suffix =
@@ -649,7 +665,7 @@ export default function CardStudioContainer() {
             );
           }
 
-          pdf.addImage(face.imgData, "PNG", posX, posY, cardW, cardH, undefined, "FAST");
+          pdf.addImage(face.imgData, "PNG", posX, posY, cardW, cardH);
           pdf.setDrawColor(203, 213, 225);
           pdf.setLineWidth(0.15);
           pdf.rect(posX, posY, cardW, cardH);

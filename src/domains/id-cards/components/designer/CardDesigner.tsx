@@ -368,28 +368,43 @@ export default function CardDesigner({
       ? `${activeStudent.nomEtudiant || ""}_${activeStudent.prenomEtudiant || ""}`.trim()
       : templateName;
 
-    if (format === "pdf-duplex") {
-      const toastId = toast.loading("Génération du PDF Recto-Verso HD (300 DPI) en cours...");
-      await exportCardToPDF(cardType, orientation, studentNameSuffix, {
-        includeVerso: true,
-        currentSide: activeSide,
-        onSwitchSide: async (side) => {
-          setActiveSide(side);
-          await new Promise((r) => setTimeout(r, 250));
-        },
-      });
-      toast.success("PDF Recto-Verso HD (300 DPI) téléchargé avec succès !", { id: toastId });
-    } else if (format === "pdf") {
-      const toastId = toast.loading("Génération du PDF HD (300 DPI)...");
-      await exportCardToPDF(cardType, orientation, `${studentNameSuffix}_${activeSide.toUpperCase()}`);
-      toast.success("PDF HD (300 DPI) téléchargé avec succès !", { id: toastId });
-    } else if (format === "png" || format === "jpeg") {
-      const toastId = toast.loading(`Exportation de l'image ${format.toUpperCase()} Ultra-HD...`);
-      await exportCardToImage(format, `${studentNameSuffix}_${activeSide.toUpperCase()}`);
-      toast.success(`Image ${format.toUpperCase()} Ultra-HD téléchargée !`, { id: toastId });
-    } else if (format === "json") {
-      exportCardToJSON(rectoElements, versoElements, cardType, orientation, templateName);
-      toast.success("Modèle JSON exporté !");
+    try {
+      if (format === "pdf-duplex") {
+        const toastId = toast.loading("Génération du PDF Recto-Verso HD (300 DPI) en cours...");
+        await exportCardToPDF(cardType, orientation, studentNameSuffix, {
+          includeVerso: true,
+          rectoElements,
+          versoElements,
+          activeStudent,
+          activeBranch,
+        });
+        toast.success("PDF Recto-Verso HD (300 DPI) téléchargé avec succès !", { id: toastId });
+      } else if (format === "pdf") {
+        const toastId = toast.loading("Génération du PDF HD (300 DPI)...");
+        await exportCardToPDF(cardType, orientation, `${studentNameSuffix}_${activeSide.toUpperCase()}`, {
+          includeVerso: false,
+          activeElements: elements,
+          activeStudent,
+          activeBranch,
+        });
+        toast.success("PDF HD (300 DPI) téléchargé avec succès !", { id: toastId });
+      } else if (format === "png" || format === "jpeg") {
+        const toastId = toast.loading(`Exportation de l'image ${format.toUpperCase()} Ultra-HD...`);
+        await exportCardToImage(format, `${studentNameSuffix}_${activeSide.toUpperCase()}`, {
+          elements,
+          cardType,
+          orientation,
+          activeStudent,
+          activeBranch,
+        });
+        toast.success(`Image ${format.toUpperCase()} Ultra-HD téléchargée !`, { id: toastId });
+      } else if (format === "json") {
+        exportCardToJSON(rectoElements, versoElements, cardType, orientation, templateName);
+        toast.success("Modèle JSON exporté !");
+      }
+    } catch (e: any) {
+      console.error("Single export error:", e);
+      toast.error("Erreur lors de l'exportation de la carte");
     }
   };
 
