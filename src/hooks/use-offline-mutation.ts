@@ -176,13 +176,13 @@ export function useOfflineMutation<T>() {
         schoolId = 2;
       }
       if (!schoolName) {
-        schoolName = "CES BOURJA";
+        schoolName = "U P AR-RAHAMA";
       }
       if (!userId) {
         userId = (payload as any)?.recordedBy || "Admin";
       }
       if (!userName) {
-        userName = (payload as any)?.recordedBy || "Admin CES BOURJA";
+        userName = (payload as any)?.recordedBy || "Admin U P AR-RAHAMA";
       }
 
       const now = Date.now();

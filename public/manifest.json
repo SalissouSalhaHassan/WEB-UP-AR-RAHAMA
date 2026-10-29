@@ -1,8 +1,8 @@
 {
   "id": "/dashboard",
-  "name": "Edut Pro - CES BOURJA",
-  "short_name": "CES BOURJA",
-  "description": "Système de Gestion Scolaire Avancé - CES BOURJA",
+  "name": "Edut Pro - U P AR-RAHAMA",
+  "short_name": "U P AR-RAHAMA",
+  "description": "Système de Gestion Scolaire Avancé - U P AR-RAHAMA",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

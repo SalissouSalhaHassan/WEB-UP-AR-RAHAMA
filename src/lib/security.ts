@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const RAW_ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "ces-bourja-fallback-32-byte-key!"; // Exactly 32 bytes
+const RAW_ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "up-rahama-fallback-32-byte-key!!"; // Exactly 32 bytes
 const KEY_BUFFER = crypto.createHash("sha256").update(RAW_ENCRYPTION_KEY).digest(); // Guaranteed 32 bytes for AES-256
 const IV_LENGTH = 16; // For AES, this is always 16
 
