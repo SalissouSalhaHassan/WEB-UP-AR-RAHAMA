@@ -168,15 +168,14 @@ export async function getActiveSchoolId() {
   try {
     const defaultSchool = await readDb.query.schools.findFirst({
       where: or(
-        eq(schools.slug, "ces-bourja.edut.pro"),
-        eq(schools.slug, "ces-bourja"),
-        ilike(schools.slug, "%bourja%"),
-        ilike(schools.name, "%BOURJA%")
+        eq(schools.slug, "up-ar-rahama"),
+        ilike(schools.slug, "%rahama%"),
+        ilike(schools.name, "%RAHAMA%")
       )
     });
     if (defaultSchool?.id) return defaultSchool.id;
   } catch (_) {}
 
-  return 2;
+  return 1;
 }
 

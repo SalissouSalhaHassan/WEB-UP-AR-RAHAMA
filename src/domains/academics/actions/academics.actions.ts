@@ -4588,7 +4588,7 @@ export async function getStudentPersonalGradesAction(params?: { period?: string;
 
 export async function initializeOfficialNigerCurriculum() {
   return protectedDbAction("Academics", "canEdit", async (user) => {
-    const schoolId = (await getActiveSchoolId()) || user?.schoolId || 2;
+    const schoolId = (await getActiveSchoolId()) || user?.schoolId || 1;
 
     // 1. Ensure Educational Levels (Collège & Lycée)
     const targetLevels = ["Collège", "Lycée"];
