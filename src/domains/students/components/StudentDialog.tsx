@@ -798,49 +798,68 @@ export default function StudentDialog({ mode = "add", initialData, trigger, open
                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
                           <Camera size={100} className="text-white" />
                        </div>
-                       <div className="relative z-10 flex gap-8 items-center">
-                          <div className="h-32 w-32 rounded-3xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-2xl ring-4 ring-slate-800/50">
-                            {preview ? (
-                              <img src={preview} alt="Preview" className="h-full w-full object-cover" />
-                            ) : (
-                              <User size={48} className="text-slate-600" />
-                            )}
-                            {isCameraOpen && (
-                              <div className="absolute inset-0 z-20 bg-black">
+
+                       {isCameraOpen ? (
+                          <div className="relative z-10 flex flex-col items-center gap-4">
+                             <div className="w-full max-w-md aspect-[4/3] rounded-3xl bg-black border-2 border-indigo-500/50 overflow-hidden shadow-2xl relative">
                                 <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover mirror" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 space-y-4">
-                             <div>
-                                <h4 className="text-white font-black text-lg tracking-tight">Photographie du dossier</h4>
-                                <p className="text-slate-500 text-[10px] font-bold mt-0.5 uppercase tracking-widest">Requis pour la carte scolaire</p>
+                                <div className="absolute top-3 left-3 bg-rose-600/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow animate-pulse">
+                                   <span className="w-2 h-2 rounded-full bg-white" /> EN DIRECT
+                                </div>
                              </div>
-                             <div className="flex gap-2">
-                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-                                <Button type="button" variant="ghost" onClick={() => fileInputRef.current?.click()} className="flex-1 rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white font-black text-[10px] gap-2 border border-white/10">
-                                  <Upload size={14} className="text-indigo-400" /> UPLOAD
+
+                             <div className="flex w-full max-w-md gap-3">
+                                <Button 
+                                  type="button" 
+                                  onClick={capturePhoto} 
+                                  className="flex-1 rounded-xl h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs gap-2 shadow-lg shadow-emerald-900/30"
+                                >
+                                   <Camera size={18} /> PRENDRE LA PHOTO (CAPTURER)
                                 </Button>
-                                {!isCameraOpen ? (
-                                  <Button type="button" variant="ghost" onClick={startCamera} className="flex-1 rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white font-black text-[10px] gap-2 border border-white/10">
-                                    <Camera size={14} className="text-indigo-400" /> CAMÉRA
-                                  </Button>
-                                ) : (
-                                  <Button type="button" onClick={capturePhoto} className="flex-1 rounded-xl h-12 bg-indigo-500 hover:bg-indigo-600 text-white font-black text-[10px] gap-2">
-                                    <Check size={14} /> CAPTURER
-                                  </Button>
-                                )}
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  onClick={stopCamera} 
+                                  className="px-6 rounded-xl h-14 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-black text-xs border border-rose-500/20"
+                                >
+                                   ANNULER
+                                </Button>
                              </div>
-                             {cameraError && (
-                               <p className="text-[10px] text-rose-400 font-bold bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
-                                 ⚠️ {cameraError}
-                               </p>
-                             )}
-                             <Button type="button" className="w-full rounded-xl h-12 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 font-black text-[10px] gap-2 border border-indigo-500/20 shadow-inner">
-                                <Zap size={14} className="text-amber-400 animate-pulse" /> SMART AI SCAN
-                             </Button>
                           </div>
-                       </div>
+                       ) : (
+                          <div className="relative z-10 flex gap-8 items-center">
+                             <div className="relative h-32 w-32 rounded-3xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-2xl ring-4 ring-slate-800/50">
+                               {preview ? (
+                                 <img src={preview} alt="Preview" className="h-full w-full object-cover" />
+                               ) : (
+                                 <User size={48} className="text-slate-600" />
+                               )}
+                             </div>
+                             <div className="flex-1 space-y-4">
+                                <div>
+                                   <h4 className="text-white font-black text-lg tracking-tight">Photographie du dossier</h4>
+                                   <p className="text-slate-500 text-[10px] font-bold mt-0.5 uppercase tracking-widest">Requis pour la carte scolaire</p>
+                                </div>
+                                <div className="flex gap-2">
+                                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                                   <Button type="button" variant="ghost" onClick={() => fileInputRef.current?.click()} className="flex-1 rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white font-black text-[10px] gap-2 border border-white/10">
+                                     <Upload size={14} className="text-indigo-400" /> UPLOAD
+                                   </Button>
+                                   <Button type="button" variant="ghost" onClick={startCamera} className="flex-1 rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white font-black text-[10px] gap-2 border border-white/10">
+                                     <Camera size={14} className="text-indigo-400" /> CAMÉRA
+                                   </Button>
+                                </div>
+                                {cameraError && (
+                                  <p className="text-[10px] text-rose-400 font-bold bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                                    ⚠️ {cameraError}
+                                  </p>
+                                )}
+                                <Button type="button" className="w-full rounded-xl h-12 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 font-black text-[10px] gap-2 border border-indigo-500/20 shadow-inner">
+                                   <Zap size={14} className="text-amber-400 animate-pulse" /> SMART AI SCAN
+                                </Button>
+                             </div>
+                          </div>
+                       )}
                     </section>
 
                     <section className="space-y-6">
