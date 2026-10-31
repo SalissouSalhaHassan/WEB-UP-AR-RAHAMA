@@ -85,12 +85,12 @@ export async function POST(request: NextRequest) {
       const amount = Number(payload?.amount);
       if (!scheduleId || !amount) return mobileJsonError("Paramètres invalides", 400);
 
-      const res = await recordSchedulePayment({
+      const res = await recordSchedulePayment(
         scheduleId,
         amount,
-        paymentMode: payload?.paymentMode || "Espèces",
-        reference: payload?.reference,
-      });
+        payload?.paymentMode || "Espèces",
+        payload?.reference
+      );
       return NextResponse.json(res);
     }
 
