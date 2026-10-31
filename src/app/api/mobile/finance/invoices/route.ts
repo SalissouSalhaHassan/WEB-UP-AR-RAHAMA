@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql, desc, inArray, or, isNull } from "drizzle-orm";
 import { db, readDb } from "@/infrastructure/database";
-import { studentFees, feePayments } from "@/infrastructure/database/schema/finance";
+import { studentFees, feePayments, studentScholarships, scholarships, studentPaymentSchedules } from "@/infrastructure/database/schema/finance";
 import { students } from "@/infrastructure/database/schema/students";
 import { getMobileUser, mobileJsonError } from "../../_lib/auth";
 import { getUserRoleType, getCompatibleLevels, normalizeLevel, hasAllEducationalLevels, isStudentInEducationalLevel } from "@/domains/auth/services/rbac";
@@ -101,10 +101,55 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const list = Array.from(dedupedMap.values()).map((row) => {
+    const dedupedRows = Array.from(dedupedMap.values());
+    const studentIds = dedupedRows.map((r) => r.student_id).filter(Boolean) as number[];
+
+    // Fetch active scholarships for recognized students
+    const scholarshipMap = new Map<number, any>();
+    if (studentIds.length > 0) {
+      try {
+        const schRows = await readDb
+          .select({
+            id: studentScholarships.id,
+            studentId: studentScholarships.studentId,
+            scholarshipId: studentScholarships.scholarshipId,
+            customDiscountPercentage: studentScholarships.customDiscountPercentage,
+            allocatedAmount: studentScholarships.allocatedAmount,
+            decisionReference: studentScholarships.decisionReference,
+            status: studentScholarships.status,
+            scholarshipName: scholarships.name,
+            scholarshipProvider: scholarships.provider,
+            scholarshipType: scholarships.type,
+            scholarshipDiscountValue: scholarships.discountValue,
+          })
+          .from(studentScholarships)
+          .leftJoin(scholarships, eq(studentScholarships.scholarshipId, scholarships.id))
+          .where(and(inArray(studentScholarships.studentId, studentIds), eq(studentScholarships.status, "Actif")));
+
+        for (const s of schRows) {
+          if (s.studentId) scholarshipMap.set(s.studentId, s);
+        }
+      } catch (schErr) {
+        console.warn("[Invoices GET] scholarship query warning:", schErr);
+      }
+    }
+
+    const list = dedupedRows.map((row) => {
       const expected = Number(row.total_expected) || 0;
       const paid = Number(row.total_paid) || 0;
-      const reduction = Number(row.total_reduction) || 0;
+      const sch = row.student_id ? scholarshipMap.get(row.student_id) : null;
+
+      let reduction = Number(row.total_reduction) || 0;
+      // If student has an active scholarship and reduction in DB is 0, compute intelligent scholarship deduction
+      if (sch) {
+        const discountVal = Number(sch.customDiscountPercentage || sch.scholarshipDiscountValue || 0);
+        const allocated = Number(sch.allocatedAmount || 0);
+        const computedSchDeduction = allocated > 0 ? allocated : (expected * discountVal) / 100;
+        if (reduction < computedSchDeduction) {
+          reduction = computedSchDeduction;
+        }
+      }
+
       const balance = Math.max(0, expected - paid - reduction);
       const status = balance <= 0 ? "Soldé" : paid > 0 ? "Partiel" : "Impayé";
 
@@ -118,12 +163,24 @@ export async function GET(request: NextRequest) {
         total_reduction: reduction,
         balance,
         status,
+        scholarship: sch ? {
+          id: sch.id,
+          name: sch.scholarshipName,
+          provider: sch.scholarshipProvider,
+          discount_percentage: sch.customDiscountPercentage || sch.scholarshipDiscountValue,
+          allocated_amount: sch.allocatedAmount,
+          decision_reference: sch.decisionReference,
+        } : null,
+        scholarship_name: sch?.scholarshipName || null,
+        scholarship_percentage: sch ? (sch.customDiscountPercentage || sch.scholarshipDiscountValue) : null,
         students: {
           num_admission: row.num_admission,
           nom_etudiant: row.nom_etudiant,
           photo_path: row.photo_path,
           classe: row.classe,
           educational_level: row.educational_level,
+          scholarship_name: sch?.scholarshipName || null,
+          scholarship_percentage: sch ? (sch.customDiscountPercentage || sch.scholarshipDiscountValue) : null,
         },
       };
     });

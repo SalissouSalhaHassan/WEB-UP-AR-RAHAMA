@@ -219,11 +219,11 @@ async function ensureFinanceTables() {
   return migrationPromise;
 }
 
-export async function getBoursesAndEcheanciersDashboardData() {
+export async function getBoursesAndEcheanciersDashboardData(explicitSchoolId?: number, explicitUser?: any) {
   try {
-    await ensureFinanceTables();
-    const user = await getCurrentUser();
-    const schoolId = (await getActiveSchoolId()) || user?.schoolId || 9;
+    await ensureFinanceTables().catch((e) => console.warn("ensureFinanceTables error ignored:", e));
+    const user = explicitUser || (await getCurrentUser().catch(() => null));
+    const schoolId = explicitSchoolId || (await getActiveSchoolId().catch(() => null)) || user?.schoolId || 9;
 
     // Resolve branch and educational level scope
     const [{ branchData }, activeEduLevel] = await Promise.all([

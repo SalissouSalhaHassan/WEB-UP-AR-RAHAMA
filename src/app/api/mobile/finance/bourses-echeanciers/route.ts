@@ -16,13 +16,14 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get("action") || "getDashboard";
+  const explicitSchoolId = Number(searchParams.get("schoolId")) || user?.schoolId || 9;
 
   try {
     if (action === "getDashboard") {
-      const data = await getBoursesAndEcheanciersDashboardData();
+      const data = await getBoursesAndEcheanciersDashboardData(explicitSchoolId, user);
       return NextResponse.json({
         success: true,
-        data,
+        data: (data as any)?.data || data,
       });
     }
 
@@ -99,3 +100,4 @@ export async function POST(request: NextRequest) {
     return mobileJsonError(`Erreur: ${err.message || err}`, 500);
   }
 }
+
