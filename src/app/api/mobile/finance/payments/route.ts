@@ -153,6 +153,24 @@ export async function GET(request: NextRequest) {
       return mobileJsonError("Accès refusé. Ce dossier ne vous appartient pas.", 403);
     }
 
+    // If student has multiple fees or duplicate records, gather all associated fee IDs for this student
+    const studentId = fee[0].studentId;
+    let targetFeeIds = [feeId];
+    if (studentId) {
+      const allStudentFees = await readDb
+        .select({ id: studentFees.id })
+        .from(studentFees)
+        .where(
+          and(
+            eq(studentFees.studentId, studentId),
+            or(eq(studentFees.schoolId, schoolId || fee[0].schoolId || 1), isNull(studentFees.schoolId))
+          )
+        );
+      if (allStudentFees.length > 0) {
+        targetFeeIds = allStudentFees.map((f) => f.id);
+      }
+    }
+
     const payments = await readDb
       .select({
         id: feePayments.id,
@@ -167,7 +185,12 @@ export async function GET(request: NextRequest) {
         recorded_by: feePayments.recordedBy,
       })
       .from(feePayments)
-      .where(eq(feePayments.feeId, feeId))
+      .where(
+        and(
+          inArray(feePayments.feeId, targetFeeIds),
+          isNull(feePayments.deletedAt)
+        )
+      )
       .orderBy(desc(feePayments.datePaid));
 
     const list = payments.map((p) => ({
