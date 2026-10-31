@@ -13,7 +13,7 @@ function LogoBox({ src, alt, size = 86 }: { src?: string; alt: string; size?: nu
       {src ? (
         <img src={src} alt={alt} className="w-full h-full object-contain" />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-[10px] font-black uppercase text-slate-300 select-none">
+        <div className="flex h-full w-full items-center justify-center text-[10px] font-black uppercase text-slate-500 font-bold bg-slate-50 select-none">
           Logo
         </div>
       )}

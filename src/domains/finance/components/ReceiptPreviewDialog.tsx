@@ -19,6 +19,8 @@ import {
   Phone,
   MapPin,
   GraduationCap,
+  Award,
+  Percent,
   Wallet,
   Hourglass,
   Info,
@@ -538,7 +540,7 @@ export default function ReceiptPreviewDialog({
       } catch (_) {}
     }
 
-    return lastPayment?.recordedBy || feeData?.payment?.recordedBy || "Admin CES BOURJA";
+    return lastPayment?.recordedBy || feeData?.payment?.recordedBy || "Admin U P AR-RAHAMA";
   }, [lastPayment, feeData, currentUser]);
 
   const targetHeader = effectiveHeaderConfig || activeHeaderConfig;
@@ -920,7 +922,7 @@ export default function ReceiptPreviewDialog({
     }
 
     const infoBoxY = provY;
-    const cardHeight = isA5 ? 27 : 35;
+    const cardHeight = isA5 ? (totalReduction > 0 ? 32 : 27) : (totalReduction > 0 ? 40 : 35);
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(220, 225, 240);
     doc.roundedRect(margin, infoBoxY, W - 2 * margin, cardHeight, isA5 ? 1.5 : 2, isA5 ? 1.5 : 2, "FD");
@@ -968,25 +970,47 @@ export default function ReceiptPreviewDialog({
     doc.setTextColor(15, 23, 42);
     doc.text(receiptDate, rx, infoBoxY + (isA5 ? 9.5 : 12.5));
 
-    const rightLabels = ["Total Attendu (Frais annuels)", "Total Déjà Payé", "Caissier / Agent"];
-    const rightVals = [
-      formatCfaAmount(totalExpected),
-      formatCfaAmount(totalPaid),
-      resolvedCashier,
-    ];
+    const rightLabels = totalReduction > 0 
+      ? ["Total Scolarité Brute", `Bourse (-${formatCfaAmount(totalReduction).replace(" CFA", "")})`, "Total Déjà Payé", "Caissier / Agent"]
+      : ["Total Attendu (Frais)", "Total Déjà Payé", "Caissier / Agent"];
 
-    doc.setFontSize(isA5 ? 5.8 : 7.5);
+    const rawSchName = (feeData?.scholarship?.scholarshipName || feeData?.student?.scholarship?.name || "Bourse Accordée");
+    const shortSchName = rawSchName.length > 22 ? rawSchName.substring(0, 20) + "..." : rawSchName;
+
+    const rightVals = totalReduction > 0
+      ? [
+          formatCfaAmount(totalExpected),
+          shortSchName,
+          formatCfaAmount(totalPaid),
+          resolvedCashier,
+        ]
+      : [
+          formatCfaAmount(totalExpected),
+          formatCfaAmount(totalPaid),
+          resolvedCashier,
+        ];
+
+    const stepSpacing = isA5 ? (totalReduction > 0 ? 2.8 : 3.2) : (totalReduction > 0 ? 3.6 : 4.2);
+    const startRightY = infoBoxY + (isA5 ? 13 : 16.5);
+    const valueColOffset = isA5 ? 28 : 38;
+    const maxValueWidth = (W / 2) - margin - valueColOffset - 4;
+
+    doc.setFontSize(isA5 ? 5.2 : 7);
     rightLabels.forEach((lbl, i) => {
+      const lineY = startRightY + i * stepSpacing;
       doc.setFont("helvetica", "normal");
       doc.setTextColor(120, 130, 150);
-      doc.text(lbl, rx, infoBoxY + (isA5 ? 13.5 : 17.5) + i * (isA5 ? 3.2 : 4.2));
+      doc.text(lbl, rx, lineY);
+
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 35, 50);
-      doc.text(`: ${rightVals[i]}`, rx + (isA5 ? 34 : 44), infoBoxY + (isA5 ? 13.5 : 17.5) + i * (isA5 ? 3.2 : 4.2));
+      
+      const valStr = `: ${rightVals[i]}`;
+      doc.text(valStr, rx + valueColOffset, lineY, { maxWidth: maxValueWidth });
     });
 
-    // Solde restant pill banner in the right card
-    const soldePillY = infoBoxY + (isA5 ? 22 : 28);
+    // Solde restant pill banner in the right card (placed dynamically at bottom of card)
+    const soldePillY = infoBoxY + cardHeight - (isA5 ? 5.5 : 7);
     doc.setFillColor(79, 70, 229);
     doc.roundedRect(rx, soldePillY, (W / 2) - margin - (isA5 ? 8 : 10), isA5 ? 4.5 : 6, isA5 ? 1 : 1.5, isA5 ? 1 : 1.5, "F");
     doc.setFontSize(isA5 ? 5.5 : 7.5);
@@ -1199,7 +1223,7 @@ export default function ReceiptPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl rounded-[2.5rem] bg-white p-0 overflow-hidden border-none shadow-2xl max-h-[96vh] flex flex-col">
+      <DialogContent className="sm:max-w-4xl rounded-[2.5rem] bg-slate-900 border border-slate-800 p-0 overflow-hidden shadow-2xl max-h-[96vh] flex flex-col">
 
         {/* ── Dialog Header ── */}
         <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-7 text-white shrink-0 no-print">
@@ -1241,7 +1265,7 @@ export default function ReceiptPreviewDialog({
         </div>
 
         {/* ── Scrollable Body ── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-950/70 p-2 sm:p-4">
 
           {!isDataComplete && (
             <div className="m-6 p-4 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center gap-3 no-print">
@@ -1265,7 +1289,7 @@ export default function ReceiptPreviewDialog({
               <div
                 id="receipt-print-area"
                 data-paper-size={selectedPaperSize}
-                className="bg-white rounded-[2rem] border border-slate-200 shadow-lg overflow-hidden transition-all duration-300 relative"
+                className="bg-white rounded-[2rem] border border-slate-200/90 shadow-2xl overflow-hidden transition-all duration-300 relative text-slate-900"
                 style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}
               >
                 {/* Top color accent */}
@@ -1379,9 +1403,20 @@ export default function ReceiptPreviewDialog({
                         </p>
                         <div className="space-y-1.5 text-[12px]">
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-500 font-medium">Total Attendu (Frais annuels)</span>
+                            <span className="text-slate-500 font-medium">{totalReduction > 0 ? "Scolarité Brute" : "Total Attendu (Frais annuels)"}</span>
                             <span className="font-bold text-slate-800">{formatCfaAmount(totalExpected)}</span>
                           </div>
+                          {totalReduction > 0 && (
+                            <div className="flex items-center justify-between bg-amber-50/70 border border-amber-200/80 rounded-lg px-2.5 py-1 -mx-1 text-amber-900">
+                              <span className="font-bold text-[11px] flex items-center gap-1">
+                                <Award size={13} className="text-amber-600" />
+                                {feeData?.scholarship?.scholarshipName || feeData?.student?.scholarship?.name || "Bourse / Exonération"}
+                              </span>
+                              <span className="font-black text-[11px] text-emerald-700">
+                                -{formatCfaAmount(totalReduction)}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-slate-500 font-medium">Total Déjà Payé</span>
                             <span className="font-bold text-slate-800">{formatCfaAmount(totalPaid)}</span>
@@ -1394,9 +1429,9 @@ export default function ReceiptPreviewDialog({
                       </div>
 
                       {/* Blue Solde Restant Pill */}
-                      <div className="mt-2.5 px-3.5 py-1.5 bg-blue-600 rounded-xl flex items-center justify-between text-white">
-                        <span className="text-[11px] font-black tracking-wider uppercase">SOLDE RESTANT</span>
-                        <span className="text-[13px] font-black">{formatCfaAmount(balance)}</span>
+                      <div className="mt-3 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-between text-white shadow-sm">
+                        <span className="text-[10px] font-black tracking-wider uppercase">SOLDE RESTANT</span>
+                        <span className="text-[12px] font-black">{formatCfaAmount(balance)}</span>
                       </div>
                     </div>
                   </div>
@@ -1549,7 +1584,7 @@ export default function ReceiptPreviewDialog({
               </div>
 
               {/* ── WhatsApp Section ── */}
-              <div className="mt-5 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 no-print">
+              <div className="mt-5 bg-slate-900 rounded-[2rem] border border-slate-800 p-6 shadow-xl space-y-4 no-print text-white">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-100">
                     <Send size={17} className="text-white" />
@@ -1571,7 +1606,7 @@ export default function ReceiptPreviewDialog({
                         onChange={(e) => { setPhoneNumber(e.target.value); setPhoneError(""); }}
                         placeholder="227 90 00 00 00"
                         className={cn(
-                          "pl-11 rounded-2xl bg-slate-50 h-12 text-sm font-bold border-slate-100",
+                          "pl-11 rounded-2xl bg-slate-800 text-white placeholder:text-slate-500 h-12 text-sm font-bold border-slate-700 focus:border-emerald-500",
                           phoneError ? "border-rose-300 ring-1 ring-rose-200" : ""
                         )}
                       />
@@ -1614,7 +1649,7 @@ export default function ReceiptPreviewDialog({
                   {allPayments.map((payment: any, idx: number) => (
                     <div
                       key={payment.id || idx}
-                      className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm flex items-center justify-between hover:border-indigo-100 transition-colors"
+                      className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-sm flex items-center justify-between hover:border-indigo-500/50 transition-colors"
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
@@ -1683,7 +1718,7 @@ export default function ReceiptPreviewDialog({
                     { label: "Total versé", value: fmt(totalPaid), color: "text-emerald-600" },
                     { label: "Solde restant", value: fmt(balance), color: isSolde ? "text-emerald-600" : "text-amber-600" },
                   ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm">
+                    <div key={label} className="bg-slate-900 rounded-2xl border border-slate-800 p-4 text-center shadow-sm">
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
                       <p className={cn("text-base font-black", color)}>{value}</p>
                     </div>
@@ -1695,25 +1730,25 @@ export default function ReceiptPreviewDialog({
         </div>
 
         {/* ── Footer Actions ── */}
-        <div className="p-5 bg-white border-t border-slate-100 flex justify-between items-center gap-4 shrink-0 no-print">
+        <div className="p-5 bg-slate-900 border-t border-slate-800 flex justify-between items-center gap-4 shrink-0 no-print">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="rounded-2xl font-black text-xs uppercase tracking-widest text-slate-400 hover:text-slate-600"
+            className="rounded-2xl font-black text-xs uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800"
           >
             Fermer
           </Button>
           <div className="flex gap-3 items-center">
             {/* Paper Size selector */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mr-2">
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-2xl border border-slate-700 shadow-inner mr-2">
               <button
                 type="button"
                 onClick={() => setSelectedPaperSize("A4")}
                 className={cn(
                   "h-8 px-4 rounded-xl text-xs font-black tracking-widest transition-all",
                   selectedPaperSize === "A4"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
+                    ? "bg-indigo-600 text-white shadow-sm font-black"
+                    : "text-slate-400 hover:text-white"
                 )}
               >
                 A4
@@ -1724,8 +1759,8 @@ export default function ReceiptPreviewDialog({
                 className={cn(
                   "h-8 px-4 rounded-xl text-xs font-black tracking-widest transition-all",
                   selectedPaperSize === "A5"
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
+                    ? "bg-indigo-600 text-white shadow-sm font-black"
+                    : "text-slate-400 hover:text-white"
                 )}
               >
                 A5
@@ -1736,7 +1771,7 @@ export default function ReceiptPreviewDialog({
               onClick={() => generatePDF(true)}
               disabled={!isDataComplete || isGenerating}
               variant="outline"
-              className="h-11 px-5 rounded-2xl border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all"
+              className="h-11 px-5 rounded-2xl border-indigo-500/40 text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/60 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all"
             >
               {isGenerating ? (
                 <span className="flex items-center gap-2">
@@ -1758,7 +1793,7 @@ export default function ReceiptPreviewDialog({
               <Button
                 onClick={handlePrint}
                 disabled={!isDataComplete}
-                className="h-11 px-7 rounded-2xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-slate-200 transition-all cursor-pointer"
+                className="h-11 px-7 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-indigo-600/30 transition-all cursor-pointer"
               >
                 <Printer size={15} /> Imprimer
               </Button>

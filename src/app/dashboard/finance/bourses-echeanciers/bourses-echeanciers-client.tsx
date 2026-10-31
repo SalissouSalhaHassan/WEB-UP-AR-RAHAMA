@@ -48,6 +48,7 @@ import {
   generateBulkPaymentSchedules,
   recordSchedulePayment,
   triggerScheduleReminder,
+  triggerBulkScheduleReminders,
   ScholarshipInput,
   StudentScholarshipAssignInput
 } from "@/domains/finance/actions/bourses-echeanciers.actions";
@@ -360,6 +361,28 @@ export function BoursesEcheanciersClient({
     });
   };
 
+  const handleBulkReminders = async () => {
+    const overdueCount = statusCounts.overdue;
+    if (overdueCount === 0) {
+      toast.info("Aucune échéance en retard à relancer.");
+      return;
+    }
+
+    if (!confirm(`Relancer intelligemment les ${overdueCount} échéances en retard ? Un avis officiel et horodaté sera généré.`)) {
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await triggerBulkScheduleReminders();
+      if (res.success) {
+        toast.success(`Relance intelligente : ${res.count} échéances traitées (${Number(res.totalAmount || 0).toLocaleString()} FCFA).`);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Erreur lors de la relance groupée");
+      }
+    });
+  };
+
   const handleDownloadNoticePDF = async (sched: any) => {
     toast.info("Génération de l'Avis de Mise en Demeure...");
     try {
@@ -405,10 +428,17 @@ export function BoursesEcheanciersClient({
   const handleDownloadAttestation = async (alloc: any) => {
     toast.info("Génération de l'Attestation Officielle...");
     try {
-      const gross = 700000;
+      const stObj = (studentsList || []).find((s: any) => s.id === alloc.studentId);
+      const allocated = Number(alloc.allocatedAmount || 0);
       const discountVal = Number(alloc.customDiscountPercentage || alloc.scholarshipDiscountValue || 50);
-      const allocated = Number(alloc.allocatedAmount || (gross * discountVal) / 100);
-      const net = Math.max(0, gross - allocated);
+      // Real Gross Tuition from student totalExpected or class fees, or accurate reverse calculation
+      let gross = Number(stObj?.totalExpected || 0);
+      if (gross <= 0 && allocated > 0 && discountVal > 0) {
+        gross = Math.round((allocated * 100) / discountVal);
+      }
+      if (gross <= 0) gross = 700000;
+      const finalAllocated = allocated > 0 ? allocated : Math.round((gross * discountVal) / 100);
+      const net = Math.max(0, gross - finalAllocated);
 
       await generateAttestationBoursePDF({
         student: {
@@ -839,6 +869,16 @@ export function BoursesEcheanciersClient({
               >
                 <Users className="w-4 h-4 mr-1.5" /> Génération Groupée
               </Button>
+              {statusCounts.overdue > 0 && (
+                <Button
+                  onClick={handleBulkReminders}
+                  size="sm"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/20 animate-pulse"
+                >
+                  <Send className="w-4 h-4 mr-1.5" /> Relance Auto Impayés ({statusCounts.overdue})
+                </Button>
+              )}
+
               <Button
                 onClick={() => setIsGenerateScheduleModal(true)}
                 size="sm"

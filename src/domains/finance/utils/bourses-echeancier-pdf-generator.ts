@@ -144,7 +144,7 @@ export async function generateAttestationBoursePDF(data: ScholarshipAttestationP
   const ministry = data.institution?.ministryName || (isHigherEd 
     ? "MINISTÈRE DE L'ENSEIGNEMENT SUPÉRIEUR ET DE LA RECHERCHE" 
     : "MINISTÈRE DE L'ÉDUCATION NATIONALE");
-  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ DES SCIENCES & TECHNOLOGIES" : "ÉTABLISSEMENT SCOLAIRE EXCELLENCE")).toUpperCase();
+  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ PRIVÉE AR-RAHAMA (U P AR-RAHAMA)" : "GROUPE SCOLAIRE & UNIVERSITAIRE U P AR-RAHAMA")).toUpperCase();
   const faculty = (data.institution?.facultyName || (isHigherEd ? "DIRECTION DES AFFAIRES FINANCIÈRES & DES BOURSES" : "SERVICE DE L'INTENDANCE & DE LA SCOLARITÉ")).toUpperCase();
 
   doc.setFont("helvetica", "bold");
@@ -394,7 +394,7 @@ export async function generateEcheancierPaiementPDF(data: PaymentSchedulePDFPara
   const inferredLevel = inferEducationalLevel(data.student.classe || "");
   const isHigherEd = isHigherEducationLevel(inferredLevel);
   const country = (data.institution?.countryName || "RÉPUBLIQUE DU NIGER").toUpperCase();
-  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ DES SCIENCES & TECHNOLOGIES" : "ÉTABLISSEMENT SCOLAIRE EXCELLENCE")).toUpperCase();
+  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ PRIVÉE AR-RAHAMA (U P AR-RAHAMA)" : "GROUPE SCOLAIRE & UNIVERSITAIRE U P AR-RAHAMA")).toUpperCase();
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
@@ -565,7 +565,7 @@ export async function generateLettreRelancePDF(data: OverdueNoticePDFParams): Pr
   const inferredLevel = inferEducationalLevel(data.student.classe || "");
   const isHigherEd = isHigherEducationLevel(inferredLevel);
   const country = (data.institution?.countryName || "RÉPUBLIQUE DU NIGER").toUpperCase();
-  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ DES SCIENCES & TECHNOLOGIES" : "ÉTABLISSEMENT SCOLAIRE EXCELLENCE")).toUpperCase();
+  const school = (data.institution?.name || (isHigherEd ? "UNIVERSITÉ PRIVÉE AR-RAHAMA (U P AR-RAHAMA)" : "GROUPE SCOLAIRE & UNIVERSITAIRE U P AR-RAHAMA")).toUpperCase();
   const faculty = (data.institution?.facultyName || (isHigherEd ? "DIRECTION DU RECOUVREMENT & DE LA SCOLARITÉ" : "SERVICE DE L'INTENDANCE & DE LA COMPTABILITÉ")).toUpperCase();
 
   doc.setFont("helvetica", "bold");

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { recordPayment } from "@/domains/finance/actions/finance.actions";
 import { getPeriods } from "@/domains/academics/actions/academics.actions";
 import { PaymentFormData } from "../validators/finance.schema";
-import { CreditCard, Banknote, TrendingUp, TrendingDown, Info, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { CreditCard, Banknote, TrendingUp, TrendingDown, Info, AlertCircle, CheckCircle2, ChevronDown, Award, Sparkles, Calendar, Percent } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOfflineMutation } from "@/hooks/use-offline-mutation";
 import { toast } from "sonner";
@@ -147,7 +147,7 @@ export default function PaymentDialog({
       resolvedCashier = resolvedCashier || "Admin";
       resolvedUserId = resolvedUserId || "Admin";
       resolvedSchoolId = resolvedSchoolId || 2;
-      resolvedSchoolName = resolvedSchoolName || "CES BOURJA";
+      resolvedSchoolName = resolvedSchoolName || "GROUP-UPIAI";
 
       const data: PaymentFormData & { schoolId?: number; recordedBy?: string } = {
         feeId: currentFee.id,
@@ -324,7 +324,93 @@ export default function PaymentDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Smart AI Bourses & Echéanciers Intelligence Panel */}
+          {(() => {
+            const currentItem = selectedFee || feeData;
+            const sch = currentItem?.scholarship;
+            const scheds = currentItem?.schedules || [];
+            const nextPendingSched = scheds.find((s: any) => (s.balance > 0 || s.status === "En retard" || s.status === "À échoir"));
+            const overdueScheds = scheds.filter((s: any) => s.status === "En retard" || (s.balance > 0 && new Date(s.dueDate) < new Date() && s.status !== "Payé"));
+
+            if (!sch && scheds.length === 0) return null;
+
+            return (
+              <div className="rounded-3xl p-5 border transition-all space-y-3 bg-gradient-to-r from-amber-50/70 via-indigo-50/50 to-slate-50 border-amber-200/80 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                      <Award size={18} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 block">Profil Financier Reconnu</span>
+                      <h4 className="text-xs font-black text-slate-900">
+                        {sch ? sch.scholarshipName : "Étudiant Sous Échéancier Régulier"}
+                      </h4>
+                    </div>
+                  </div>
+
+                  {sch && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-600 text-white text-xs font-black shadow-sm">
+                        <Percent size={12} /> {sch.customDiscountPercentage || sch.scholarshipDiscountValue}% Bourse
+                      </span>
+                      <span className="text-[11px] font-bold text-emerald-700 hidden sm:inline">
+                        (-{Number(sch.allocatedAmount || 0).toLocaleString()} CFA Déduit)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sub details: Provider & Schedule intelligence */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                  {sch?.scholarshipProvider && (
+                    <div className="flex items-center gap-1.5 text-slate-600 bg-white/70 px-3 py-1.5 rounded-xl border border-slate-200/60 font-medium">
+                      <Sparkles size={13} className="text-amber-500" />
+                      <span>Organisme : <strong className="text-slate-900">{sch.scholarshipProvider}</strong></span>
+                    </div>
+                  )}
+
+                  {nextPendingSched && (
+                    <div className="flex items-center justify-between gap-1.5 text-slate-600 bg-white/70 px-3 py-1.5 rounded-xl border border-slate-200/60 font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={13} className="text-indigo-500" />
+                        <span>Prochaine Échéance : <strong className="text-slate-900">{nextPendingSched.label}</strong></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAmount(Number(nextPendingSched.balance || nextPendingSched.netAmount));
+                          toast.info(`Montant aligné sur l'échéance : ${nextPendingSched.label}`);
+                        }}
+                        className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
+                      >
+                        Régler ({Number(nextPendingSched.balance || nextPendingSched.netAmount).toLocaleString()} CFA)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {overdueScheds.length > 0 && (
+                  <div className="text-[11px] font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 flex items-center justify-between">
+                    <span>⚠️ {overdueScheds.length} échéance(s) en retard détectée(s) pour cet étudiant.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const totalOverdue = overdueScheds.reduce((acc: number, s: any) => acc + Number(s.balance || 0), 0);
+                        setAmount(totalOverdue);
+                        toast.info(`Montant ajusté pour solder tous les retards (${totalOverdue.toLocaleString()} CFA)`);
+                      }}
+                      className="text-[10px] font-black uppercase text-rose-700 underline"
+                    >
+                      Payer Tous les Retards
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mois / Session concerné</Label>

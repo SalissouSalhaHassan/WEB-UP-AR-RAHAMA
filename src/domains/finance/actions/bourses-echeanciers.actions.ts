@@ -972,3 +972,64 @@ export async function triggerScheduleReminder(scheduleId: number) {
     return { success: false, error: error.message || "Erreur lors de l'envoi de la relance" };
   }
 }
+
+export async function triggerBulkScheduleReminders(scheduleIds?: number[]) {
+  try {
+    const schoolId = await getActiveSchoolId();
+    const now = new Date();
+
+    let query = (readDb || db)
+      .select({
+        id: studentPaymentSchedules.id,
+        installmentNumber: studentPaymentSchedules.installmentNumber,
+        label: studentPaymentSchedules.label,
+        dueDate: studentPaymentSchedules.dueDate,
+        netAmount: studentPaymentSchedules.netAmount,
+        balance: studentPaymentSchedules.balance,
+        studentId: studentPaymentSchedules.studentId,
+        studentNom: students.nomEtudiant,
+        studentMatricule: students.numAdmission,
+        studentClasse: students.classe,
+        studentMobile: students.mobile,
+        studentWhatsapp: students.whatsapp,
+      })
+      .from(studentPaymentSchedules)
+      .leftJoin(students, eq(studentPaymentSchedules.studentId, students.id))
+      .where(
+        and(
+          schoolId ? eq(studentPaymentSchedules.schoolId, schoolId) : undefined,
+          sql`${studentPaymentSchedules.balance} > 0`,
+          sql`${studentPaymentSchedules.dueDate} < ${now}`
+        )
+      );
+
+    const overdueSchedules = await query;
+    const targetList = scheduleIds && scheduleIds.length > 0
+      ? overdueSchedules.filter(s => scheduleIds.includes(s.id))
+      : overdueSchedules;
+
+    if (targetList.length === 0) {
+      return { success: true, count: 0, message: "Aucune échéance en retard à relancer" };
+    }
+
+    const idsToUpdate = targetList.map(s => s.id);
+    await db
+      .update(studentPaymentSchedules)
+      .set({
+        status: "Relancé",
+        reminderSentAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(inArray(studentPaymentSchedules.id, idsToUpdate));
+
+    revalidatePath("/dashboard/finance/bourses-echeanciers");
+    return {
+      success: true,
+      count: targetList.length,
+      totalAmount: targetList.reduce((acc, curr) => acc + Number(curr.balance || 0), 0)
+    };
+  } catch (error: any) {
+    console.error("Error in triggerBulkScheduleReminders:", error);
+    return { success: false, error: error.message || "Erreur lors de la relance groupée" };
+  }
+}
