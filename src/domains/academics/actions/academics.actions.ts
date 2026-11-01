@@ -26,7 +26,10 @@ import {
   studentResults,
   studentTermSummaries,
   resultsWorkflows,
-  periodExtensionRequests
+  periodExtensionRequests,
+  universityFaculties,
+  universityDepartments,
+  universityPrograms
 } from "@/infrastructure/database/schema/academics";
 import { students } from "@/infrastructure/database/schema/students";
 import { studentAttendance } from "@/infrastructure/database/schema/attendance";
@@ -4875,4 +4878,396 @@ export async function initializeOfficialNigerCurriculum() {
       message: "Programme officiel du Niger (Collège & Lycée, Classes, Matières et Coefficients) initialisé avec succès !",
     };
   });
+}
+
+export async function initializeOfficialUniversityCurriculum() {
+  return protectedDbAction("Academics", "canEdit", async (user) => {
+    const schoolId = (await getActiveSchoolId()) || user?.schoolId || 1;
+
+    // 1. Ensure Educational Level (Université)
+    const targetLevelName = "Université";
+    let univLevel = await db.query.educationalLevels.findFirst({
+      where: and(
+        eq(educationalLevels.schoolId, schoolId),
+        ilike(educationalLevels.levelName, targetLevelName)
+      ),
+    });
+    if (!univLevel) {
+      const [insertedLvl] = await db.insert(educationalLevels).values({
+        schoolId,
+        levelName: targetLevelName,
+      }).returning();
+      univLevel = insertedLvl;
+    }
+
+    // 2. Ensure Official Faculties
+    const facultyDefs = [
+      { name: "Faculté des Sciences et Technologies (FST)", code: "FST", description: "Sciences exactes, génie logiciel, réseaux et technologies numériques" },
+      { name: "Faculté des Sciences Économiques et de Gestion (FASEG)", code: "FASEG", description: "Sciences de gestion, finance, comptabilité et économie" },
+      { name: "Faculté des Sciences Juridiques et Politiques (FSJP)", code: "FSJP", description: "Droit privé, droit des affaires, droit public et sciences politiques" },
+    ];
+
+    const facultyMap = new Map<string, number>();
+    for (const fac of facultyDefs) {
+      let existingFac = await db.query.universityFaculties.findFirst({
+        where: and(
+          eq(universityFaculties.schoolId, schoolId),
+          ilike(universityFaculties.name, fac.name)
+        ),
+      });
+      if (!existingFac) {
+        const [inserted] = await db.insert(universityFaculties).values({
+          schoolId,
+          name: fac.name,
+          code: fac.code,
+          description: fac.description,
+        }).returning();
+        existingFac = inserted;
+      }
+      if (existingFac) {
+        facultyMap.set(fac.code, existingFac.id);
+      }
+    }
+
+    // 3. Ensure Official Departments
+    const deptDefs = [
+      { facultyCode: "FST", name: "Département d'Informatique & Réseaux", code: "INFO", description: "Filières Informatique, Réseaux et Génie Logiciel" },
+      { facultyCode: "FASEG", name: "Département de Gestion & Finance", code: "GEST", description: "Filières Comptabilité, Finance, Audit et Gestion" },
+      { facultyCode: "FSJP", name: "Département de Droit Privé & des Affaires", code: "DROIT", description: "Filières Droit des Affaires, Droit Civil et Droit Public" },
+    ];
+
+    const deptMap = new Map<string, number>();
+    for (const dept of deptDefs) {
+      const facId = facultyMap.get(dept.facultyCode);
+      if (!facId) continue;
+      let existingDept = await db.query.universityDepartments.findFirst({
+        where: and(
+          eq(universityDepartments.facultyId, facId),
+          ilike(universityDepartments.name, dept.name)
+        ),
+      });
+      if (!existingDept) {
+        const [inserted] = await db.insert(universityDepartments).values({
+          facultyId: facId,
+          name: dept.name,
+          code: dept.code,
+          description: dept.description,
+        }).returning();
+        existingDept = inserted;
+      }
+      if (existingDept) {
+        deptMap.set(dept.code, existingDept.id);
+      }
+    }
+
+    // 4. Ensure University Subjects (UEs / Modules Universitaires)
+    const subjectDefs = [
+      // Informatique
+      { subjectName: "Algorithmique & Structures de Données", subjectCode: "INFO101", category: "Scientifique" },
+      { subjectName: "Programmation Orientée Objet (Java/Python)", subjectCode: "INFO102", category: "Scientifique" },
+      { subjectName: "Systèmes d'Exploitation & Linux", subjectCode: "INFO103", category: "Scientifique" },
+      { subjectName: "Bases de Données Relationnelles & SQL", subjectCode: "INFO201", category: "Scientifique" },
+      { subjectName: "Réseaux Informatiques & Télécoms", subjectCode: "INFO202", category: "Scientifique" },
+      { subjectName: "Génie Logiciel & Modélisation UML", subjectCode: "INFO301", category: "Scientifique" },
+      { subjectName: "Développement Web & Mobile", subjectCode: "INFO302", category: "Scientifique" },
+      { subjectName: "Cybersécurité & Sécurité des Données", subjectCode: "INFO303", category: "Scientifique" },
+      { subjectName: "Architecture Cloud & Systèmes Distribués", subjectCode: "INFO401", category: "Scientifique" },
+      { subjectName: "Intelligence Artificielle & Data Science", subjectCode: "INFO402", category: "Scientifique" },
+      // Gestion & Économie
+      { subjectName: "Comptabilité Générale & Financière", subjectCode: "GEST101", category: "Gestion" },
+      { subjectName: "Microéconomie & Macroéconomie", subjectCode: "ECON101", category: "Sciences Économiques" },
+      { subjectName: "Management des Organisations", subjectCode: "GEST102", category: "Gestion" },
+      { subjectName: "Mathématiques Financières & Statistiques", subjectCode: "STAT101", category: "Scientifique" },
+      { subjectName: "Contrôle de Gestion & Audit", subjectCode: "GEST201", category: "Gestion" },
+      { subjectName: "Fiscalité des Entreprises", subjectCode: "GEST202", category: "Gestion" },
+      { subjectName: "Marketing Stratégique & Digital", subjectCode: "GEST301", category: "Gestion" },
+      { subjectName: "Gestion Financière & Analyse de Bilan", subjectCode: "GEST302", category: "Gestion" },
+      // Droit
+      { subjectName: "Introduction Générale au Droit", subjectCode: "DROIT101", category: "Droit" },
+      { subjectName: "Droit Constitutionnel & Institutions", subjectCode: "DROIT102", category: "Droit" },
+      { subjectName: "Droit Civil (Personnes & Obligations)", subjectCode: "DROIT103", category: "Droit" },
+      { subjectName: "Droit Commercial & des Sociétés", subjectCode: "DROIT201", category: "Droit" },
+      { subjectName: "Droit du Travail & Sécurité Sociale", subjectCode: "DROIT202", category: "Droit" },
+      { subjectName: "Droit Pénal Général", subjectCode: "DROIT203", category: "Droit" },
+      { subjectName: "Droit des Affaires & Contentieux", subjectCode: "DROIT301", category: "Droit" },
+      { subjectName: "Droit Fiscal & Procédures", subjectCode: "DROIT302", category: "Droit" },
+      // Transversaux
+      { subjectName: "Anglais Professionnel & Technique", subjectCode: "LANG101", category: "Langues" },
+      { subjectName: "Méthodologie de Recherche & Projet", subjectCode: "METH101", category: "Méthodologie" },
+      { subjectName: "Éthique, Déontologie & Droit du Numérique", subjectCode: "ETH101", category: "Citoyenneté" },
+    ];
+
+    const subjectIdByName = new Map<string, number>();
+    for (const sub of subjectDefs) {
+      let existingSub = await db.query.schoolSubjects.findFirst({
+        where: and(
+          eq(schoolSubjects.schoolId, schoolId),
+          ilike(schoolSubjects.subjectName, sub.subjectName)
+        ),
+      });
+      if (!existingSub) {
+        const [insertedSub] = await db.insert(schoolSubjects).values({
+          schoolId,
+          subjectName: sub.subjectName,
+          subjectCode: sub.subjectCode,
+          category: sub.category,
+        }).returning();
+        existingSub = insertedSub;
+      }
+      if (existingSub) {
+        subjectIdByName.set(sub.subjectName, existingSub.id);
+      }
+    }
+
+    // 5. Ensure University Sections, Classes & Programs
+    const univSectionDefs = [
+      {
+        sectionName: "Licence Informatique (LMD)",
+        deptCode: "INFO",
+        programName: "Licence en Informatique (Génie Logiciel & Réseaux)",
+        programCode: "L-INFO",
+        degreeLevel: "Licence",
+        series: "Informatique",
+        classes: ["L1 Informatique", "L2 Informatique", "L3 Informatique"],
+        coefs: {
+          "Algorithmique & Structures de Données": 4,
+          "Programmation Orientée Objet (Java/Python)": 4,
+          "Systèmes d'Exploitation & Linux": 3,
+          "Bases de Données Relationnelles & SQL": 4,
+          "Réseaux Informatiques & Télécoms": 3,
+          "Génie Logiciel & Modélisation UML": 4,
+          "Développement Web & Mobile": 4,
+          "Cybersécurité & Sécurité des Données": 3,
+          "Anglais Professionnel & Technique": 2,
+          "Méthodologie de Recherche & Projet": 2,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Licence Gestion & Finance (LMD)",
+        deptCode: "GEST",
+        programName: "Licence en Sciences de Gestion (Comptabilité & Finance)",
+        programCode: "L-GEST",
+        degreeLevel: "Licence",
+        series: "Sciences Économiques & Gestion",
+        classes: ["L1 Gestion", "L2 Gestion", "L3 Gestion"],
+        coefs: {
+          "Comptabilité Générale & Financière": 4,
+          "Microéconomie & Macroéconomie": 3,
+          "Management des Organisations": 3,
+          "Mathématiques Financières & Statistiques": 3,
+          "Contrôle de Gestion & Audit": 4,
+          "Fiscalité des Entreprises": 3,
+          "Marketing Stratégique & Digital": 3,
+          "Gestion Financière & Analyse de Bilan": 3,
+          "Anglais Professionnel & Technique": 2,
+          "Méthodologie de Recherche & Projet": 2,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Licence Droit Privé & des Affaires (LMD)",
+        deptCode: "DROIT",
+        programName: "Licence en Droit (Droit des Affaires & Droit Privé)",
+        programCode: "L-DROIT",
+        degreeLevel: "Licence",
+        series: "Sciences Juridiques",
+        classes: ["L1 Droit", "L2 Droit", "L3 Droit"],
+        coefs: {
+          "Introduction Générale au Droit": 4,
+          "Droit Constitutionnel & Institutions": 3,
+          "Droit Civil (Personnes & Obligations)": 4,
+          "Droit Commercial & des Sociétés": 4,
+          "Droit du Travail & Sécurité Sociale": 3,
+          "Droit Pénal Général": 3,
+          "Droit des Affaires & Contentieux": 4,
+          "Droit Fiscal & Procédures": 3,
+          "Anglais Professionnel & Technique": 2,
+          "Éthique, Déontologie & Droit du Numérique": 2,
+        } as Record<string, number>,
+      },
+      {
+        sectionName: "Master Professionnel Informatique (LMD)",
+        deptCode: "INFO",
+        programName: "Master en Ingénierie Logicielle & Systèmes d'Information",
+        programCode: "M-INFO",
+        degreeLevel: "Master",
+        series: "Informatique Avancée",
+        classes: ["Master 1 Informatique", "Master 2 Informatique"],
+        coefs: {
+          "Génie Logiciel & Modélisation UML": 4,
+          "Architecture Cloud & Systèmes Distribués": 4,
+          "Intelligence Artificielle & Data Science": 4,
+          "Cybersécurité & Sécurité des Données": 4,
+          "Anglais Professionnel & Technique": 2,
+          "Méthodologie de Recherche & Projet": 3,
+        } as Record<string, number>,
+      },
+    ];
+
+    let firstUnivSectionId: number | null = null;
+    for (const secDef of univSectionDefs) {
+      let sec = await db.query.schoolSections.findFirst({
+        where: and(
+          eq(schoolSections.schoolId, schoolId),
+          ilike(schoolSections.sectionName, secDef.sectionName)
+        ),
+      });
+      if (!sec) {
+        const [insertedSec] = await db.insert(schoolSections).values({
+          schoolId,
+          sectionName: secDef.sectionName,
+          educationalLevel: "Université",
+          series: secDef.series,
+          numTerms: 2,
+          termLabels: "Semestre 1, Semestre 2",
+          minPassingGrade: 10.0,
+          redoublementThreshold: 8.0,
+          exclusionThreshold: 5.0,
+        }).returning();
+        sec = insertedSec;
+      }
+      if (!sec) continue;
+      if (!firstUnivSectionId) firstUnivSectionId = sec.id;
+
+      // Link university program
+      const deptId = deptMap.get(secDef.deptCode);
+      if (deptId) {
+        let prog = await db.query.universityPrograms.findFirst({
+          where: and(
+            eq(universityPrograms.schoolId, schoolId),
+            ilike(universityPrograms.name, secDef.programName)
+          ),
+        });
+        if (!prog) {
+          await db.insert(universityPrograms).values({
+            schoolId,
+            departmentId: deptId,
+            sectionId: sec.id,
+            name: secDef.programName,
+            code: secDef.programCode,
+            degreeLevel: secDef.degreeLevel,
+            totalCredits: secDef.degreeLevel === "Master" ? 120 : 180,
+            durationSemesters: secDef.degreeLevel === "Master" ? 4 : 6,
+          });
+        }
+      }
+
+      // Link section subjects
+      for (const [subName, coef] of Object.entries(secDef.coefs)) {
+        const subId = subjectIdByName.get(subName);
+        if (!subId) continue;
+        const existingSecSub = await db.query.sectionSubjects.findFirst({
+          where: and(
+            eq(sectionSubjects.sectionId, sec.id),
+            eq(sectionSubjects.subjectId, subId)
+          ),
+        });
+        if (!existingSecSub) {
+          await db.insert(sectionSubjects).values({
+            sectionId: sec.id,
+            subjectId: subId,
+            term: "Tous",
+            defaultCoef: coef,
+          });
+        }
+      }
+
+      // Create classes & class subjects
+      for (const clsName of secDef.classes) {
+        let cls = await db.query.schoolClasses.findFirst({
+          where: and(
+            eq(schoolClasses.schoolId, schoolId),
+            ilike(schoolClasses.className, clsName)
+          ),
+        });
+        if (!cls) {
+          const [insertedCls] = await db.insert(schoolClasses).values({
+            schoolId,
+            className: clsName,
+            sectionId: sec.id,
+            roomName: `Amphi / Salle ${clsName}`,
+          }).returning();
+          cls = insertedCls;
+        }
+        if (cls) {
+          for (const [subName, coef] of Object.entries(secDef.coefs)) {
+            const subId = subjectIdByName.get(subName);
+            if (!subId) continue;
+            const existingClsSub = await db.query.classSubjects.findFirst({
+              where: and(
+                eq(classSubjects.schoolId, schoolId),
+                eq(classSubjects.classId, cls.id),
+                eq(classSubjects.subjectId, subId)
+              ),
+            });
+            if (!existingClsSub) {
+              await db.insert(classSubjects).values({
+                schoolId,
+                classId: cls.id,
+                subjectId: subId,
+                coefficient: coef,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 6. Ensure LMD University Grading Appreciations & Remarks
+    const lmdAppreciations = [
+      { name: "Très Honorable avec Félicitations", baseScore: 16, displayOrder: 1 },
+      { name: "Bien", baseScore: 14, displayOrder: 2 },
+      { name: "Assez Bien", baseScore: 12, displayOrder: 3 },
+      { name: "Passable (Validé)", baseScore: 10, displayOrder: 4 },
+      { name: "Ajourné (Session de Rattrapage)", baseScore: 0, displayOrder: 5 },
+    ];
+    for (const app of lmdAppreciations) {
+      const existingApp = await db.query.gradingAppreciations.findFirst({
+        where: ilike(gradingAppreciations.name, app.name),
+      });
+      if (!existingApp) {
+        await db.insert(gradingAppreciations).values(app).catch(() => {});
+      }
+    }
+
+    if (firstUnivSectionId) {
+      const lmdRemarks = [
+        { category: "Délibération", content: "Semestre Validé (V) - Passage sans dette", score: 14, displayOrder: 1 },
+        { category: "Délibération", content: "Semestre Validé par Compensation (VC)", score: 10, displayOrder: 2 },
+        { category: "Délibération", content: "Enjambement autorisé (Sous réserve de validation des dettes)", score: 9, displayOrder: 3 },
+        { category: "Délibération", content: "Ajourné - Session de Rattrapage obligatoire", score: 7, displayOrder: 4 },
+      ];
+      for (const rem of lmdRemarks) {
+        const existingRem = await db.query.schoolRemarks.findFirst({
+          where: and(
+            eq(schoolRemarks.sectionId, firstUnivSectionId),
+            ilike(schoolRemarks.content, rem.content)
+          ),
+        });
+        if (!existingRem) {
+          await db.insert(schoolRemarks).values({
+            ...rem,
+            sectionId: firstUnivSectionId,
+            isChecked: true,
+          }).catch(() => {});
+        }
+      }
+    }
+
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/academics");
+    revalidateTag(ACADEMICS_CACHE_TAG);
+    return {
+      success: true,
+      message: "Programme universitaire LMD (Facultés, Départements, Licences & Masters, UEs et Coefficients) initialisé avec succès !",
+    };
+  });
+}
+
+export async function initializeFullAllLevelsCurriculum() {
+  const schoolRes = await initializeOfficialNigerCurriculum();
+  const univRes = await initializeOfficialUniversityCurriculum();
+  return {
+    success: schoolRes?.success && univRes?.success,
+    message: "Programmes complets Scolaire (Collège & Lycée) et Universitaire (Système LMD) initialisés avec succès !",
+  };
 }

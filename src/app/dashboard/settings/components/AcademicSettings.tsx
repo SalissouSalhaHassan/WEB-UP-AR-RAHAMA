@@ -17,7 +17,9 @@ import {
   createSchoolRemark, deleteSchoolRemark,
   createPeriod, deletePeriod, updatePeriod, togglePeriodLock, handlePeriodExtensionRequest, getPeriodExtensionRequests, promoteClassStudents,
   createEducationalLevel, deleteEducationalLevel, createCanevasReferenceItem, deleteCanevasReferenceItem,
-  initializeOfficialNigerCurriculum
+  initializeOfficialNigerCurriculum,
+  initializeOfficialUniversityCurriculum,
+  initializeFullAllLevelsCurriculum
 } from "@/domains/academics/actions/academics.actions";
 import { localDb } from "@/infrastructure/local-db/dexie";
 import { 
@@ -1326,46 +1328,144 @@ export function AcademicSettings({
     });
   };
 
+  const [initTarget, setInitTarget] = useState<"school" | "university" | "all" | null>(null);
+
   const handleInitNigerCurriculum = () => {
     if (!canEdit) return;
+    setInitTarget("school");
     startTransition(async () => {
       try {
         const res = (await initializeOfficialNigerCurriculum()) as any;
         if (res?.success) {
-          toast.success(res.message || "Programme officiel initialisé avec succès !");
+          toast.success(res.message || "Programme scolaire (Collège & Lycée) initialisé avec succès !");
           router.refresh();
         } else {
-          toast.error(res?.error || "Erreur lors de l'initialisation du programme officiel.");
+          toast.error(res?.error || "Erreur lors de l'initialisation du programme scolaire.");
         }
       } catch (e: any) {
-        toast.error(e?.message || "Erreur lors de l'initialisation du programme officiel.");
+        toast.error(e?.message || "Erreur lors de l'initialisation du programme scolaire.");
+      } finally {
+        setInitTarget(null);
+      }
+    });
+  };
+
+  const handleInitUniversityCurriculum = () => {
+    if (!canEdit) return;
+    setInitTarget("university");
+    startTransition(async () => {
+      try {
+        const res = (await initializeOfficialUniversityCurriculum()) as any;
+        if (res?.success) {
+          toast.success(res.message || "Programme universitaire LMD initialisé avec succès !");
+          router.refresh();
+        } else {
+          toast.error(res?.error || "Erreur lors de l'initialisation du programme universitaire.");
+        }
+      } catch (e: any) {
+        toast.error(e?.message || "Erreur lors de l'initialisation du programme universitaire.");
+      } finally {
+        setInitTarget(null);
+      }
+    });
+  };
+
+  const handleInitFullCurriculum = () => {
+    if (!canEdit) return;
+    setInitTarget("all");
+    startTransition(async () => {
+      try {
+        const res = (await initializeFullAllLevelsCurriculum()) as any;
+        if (res?.success) {
+          toast.success(res.message || "Programmes complets (Collège, Lycée & Université) initialisés avec succès !");
+          router.refresh();
+        } else {
+          toast.error(res?.error || "Erreur lors de l'initialisation complète.");
+        }
+      } catch (e: any) {
+        toast.error(e?.message || "Erreur lors de l'initialisation complète.");
+      } finally {
+        setInitTarget(null);
       }
     });
   };
 
   return (
     <div className="space-y-8 pb-20">
-      {/* 0. Quick Official Niger Curriculum Setup Banner */}
-      <div className="bg-gradient-to-r from-indigo-950/80 via-[#1F222B] to-emerald-950/60 border border-indigo-500/30 rounded-3xl p-6 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
-            <Sparkles size={14} /> Configuration Rapide — Programme Officiel du Niger (MEN / DREN)
+      {/* 0. Quick Setup Banners: Collège & Lycée + Université LMD */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Card 1: Collège & Lycée */}
+          <div className="bg-gradient-to-br from-indigo-950/70 via-[#1F222B] to-slate-900 border border-indigo-500/30 rounded-3xl p-6 shadow-lg flex flex-col justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
+                <BookOpen size={14} /> Programme Officiel MEN / DREN
+              </div>
+              <h2 className="text-lg font-extrabold text-white">
+                Initialisation Automatique : Collège & Lycée
+              </h2>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Crée automatiquement en un clic les cycles (Collège, Lycée Séries A, C, D), les classes (6ème à Terminale), les 12 matières réglementaires avec leurs coefficients officiels, barèmes d&apos;appréciation et mentions du conseil.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Button
+                onClick={handleInitNigerCurriculum}
+                disabled={isPending || !canEdit}
+                className="w-full sm:w-auto h-11 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl px-5 shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              >
+                {isPending && initTarget === "school" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Initialiser Collège & Lycée
+              </Button>
+            </div>
           </div>
-          <h2 className="text-lg font-extrabold text-white">
-            Initialisation Automatique du Programme Scolaire (Collège & Lycée)
-          </h2>
-          <p className="text-slate-400 text-xs max-w-2xl">
-            Crée automatiquement en un clic les cycles (Collège, Lycée Séries A, C, D), les classes (6ème à Terminale), les 12 matières officielles avec leurs coefficients réglementaires, ainsi que l&apos;échelle d&apos;appréciation et les mentions du conseil de classe.
-          </p>
+
+          {/* Card 2: Université & Enseignement Supérieur (Système LMD) */}
+          <div className="bg-gradient-to-br from-purple-950/70 via-[#1F222B] to-emerald-950/40 border border-purple-500/30 rounded-3xl p-6 shadow-lg flex flex-col justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold">
+                <GraduationCap size={14} /> Enseignement Supérieur — Système LMD (MESRIT)
+              </div>
+              <h2 className="text-lg font-extrabold text-white">
+                Initialisation Automatique : Université (LMD)
+              </h2>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Génère le niveau Université, 3 Facultés (FST, FASEG, FSJP), 3 Départements, Licences & Masters (Informatique, Gestion, Droit), classes L1 à M2, et 29 Unités d&apos;Enseignement avec crédits et coefficients.
+              </p>
+            </div>
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <Button
+                onClick={handleInitUniversityCurriculum}
+                disabled={isPending || !canEdit}
+                className="w-full sm:w-auto h-11 bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white font-bold rounded-xl px-5 shadow-lg shadow-purple-600/20 disabled:opacity-50"
+              >
+                {isPending && initTarget === "university" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                )}
+                Initialiser Université (LMD)
+              </Button>
+              <Button
+                onClick={handleInitFullCurriculum}
+                disabled={isPending || !canEdit}
+                variant="outline"
+                className="w-full sm:w-auto h-11 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold rounded-xl px-4 text-xs disabled:opacity-50"
+              >
+                {isPending && initTarget === "all" ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-3.5 w-3.5 text-amber-400" />
+                )}
+                Tout Initialiser (Complet)
+              </Button>
+            </div>
+          </div>
         </div>
-        <Button
-          onClick={handleInitNigerCurriculum}
-          disabled={isPending || !canEdit}
-          className="h-12 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-bold rounded-xl px-6 shrink-0 shadow-lg shadow-indigo-600/20 disabled:opacity-50"
-        >
-          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          Initialiser le Programme Officiel
-        </Button>
       </div>
 
       {/* 1. Sessions */}
