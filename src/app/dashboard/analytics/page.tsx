@@ -1,3 +1,4 @@
+import { AIAnalyticsService } from "@/domains/ai/services/ai-analytics.service";
 import { getPredictiveAnalyticsData } from "@/domains/analytics/actions/bi.actions";
 import { getCurrentUser } from "@/domains/auth/services/session";
 import { redirect } from "next/navigation";
@@ -12,14 +13,17 @@ export default async function AnalyticsPage() {
     redirect("/login");
   }
 
-  // 2. Fetch predictive analytics data
-  const result = await getPredictiveAnalyticsData();
+  // 2. Fetch predictive analytics data and AI Dropout Risk Overview
+  const [result, aiOverview] = await Promise.all([
+    getPredictiveAnalyticsData(),
+    AIAnalyticsService.getSchoolDropoutRiskOverview().catch(() => null),
+  ]);
   
-  if (result.error) {
+  if (result?.error && !aiOverview) {
     redirect("/dashboard");
   }
 
-  const { dropoutAlerts, regressionAlerts, indicators, metrics } = result.data || {
+  const { dropoutAlerts, regressionAlerts, indicators, metrics } = result?.data || {
     dropoutAlerts: [],
     regressionAlerts: [],
     indicators: { weakSubjects: [], classSuccessRates: [], absencesFailureCorrelation: [] },
@@ -33,6 +37,7 @@ export default async function AnalyticsPage() {
       regressionAlerts={regressionAlerts}
       indicators={indicators}
       metrics={metrics}
+      aiOverview={aiOverview}
     />
   );
 }

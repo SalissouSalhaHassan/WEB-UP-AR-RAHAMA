@@ -1,3 +1,5 @@
+import { LmdProgressionPathway } from "@/domains/academics/components/LmdProgressionPathway";
+import { AIRiskBadge } from "@/domains/ai/components/AIRiskBadge";
 "use client";
 
 import React, { useState, useTransition } from "react";
@@ -20,6 +22,8 @@ interface StudentProfileClientProps {
   rewards: any[];
   incidents: any[];
   counselorNotes: any[];
+  lmdProfile?: any;
+  aiRiskProfile?: any;
 }
 
 export default function StudentProfileClient({
@@ -30,9 +34,11 @@ export default function StudentProfileClient({
   assignments,
   rewards,
   incidents,
-  counselorNotes
+  counselorNotes,
+  lmdProfile,
+  aiRiskProfile
 }: StudentProfileClientProps) {
-  const [activeTab, setActiveTab] = useState<"academic" | "behavior" | "counselor">("academic");
+  const [activeTab, setActiveTab] = useState<"academic" | "behavior" | "counselor" | "lmd">("academic");
   const [isPending, startTransition] = useTransition();
 
   // Behavior form states
@@ -180,10 +186,26 @@ export default function StudentProfileClient({
           </div>
           <div>
             <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{student.nomEtudiant}</h1>
               <span className="px-3 py-1 bg-indigo-50 text-indigo-600 border border-indigo-100 text-[10px] font-black uppercase tracking-widest rounded-full shadow-sm">
                 Matricule: {student.numAdmission}
               </span>
+              {aiRiskProfile && (
+                <AIRiskBadge
+                  studentId={student.id}
+                  studentName={student.nomEtudiant}
+                  riskScore={aiRiskProfile.riskScore}
+                  riskLevel={aiRiskProfile.riskLevel}
+                  absenceRate={aiRiskProfile.absenceRate}
+                  averageGrade={aiRiskProfile.averageGrade}
+                  primaryRiskFactorFr={aiRiskProfile.primaryRiskFactorFr}
+                  primaryRiskFactorAr={aiRiskProfile.primaryRiskFactorAr}
+                  aiRecommendationFr={aiRiskProfile.aiRecommendationFr}
+                  aiRecommendationAr={aiRiskProfile.aiRecommendationAr}
+                />
+              )}
+            </div>
             </div>
             <p className="text-slate-500 font-bold text-sm mt-1">
               Classe : <span className="text-slate-800 font-black">{student.classe || "Non spécifié"}</span> • Niveau : <span className="text-slate-800 font-black">{student.educationalLevel || "Non spécifié"}</span>
@@ -227,6 +249,22 @@ export default function StudentProfileClient({
           <Award size={16} />
           Profil Comportemental
         </button>
+        {lmdProfile && (
+          <button 
+            onClick={() => setActiveTab("lmd")}
+            className={`pb-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === "lmd" 
+                ? "border-indigo-600 text-indigo-600" 
+                : "border-transparent text-slate-400 hover:text-slate-800"
+            }`}
+          >
+            <GraduationCap size={16} />
+            Parcours & Crédits LMD
+            <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 text-[10px] font-extrabold">
+              {lmdProfile.totalCreditsAcquired} / {lmdProfile.totalCreditsRequired} ECTS
+            </span>
+          </button>
+        )}
         
         {isCounselorOrAdmin && (
           <button 
@@ -246,6 +284,11 @@ export default function StudentProfileClient({
       {/* Content Tabs */}
       <div className="grid grid-cols-1 gap-6">
 
+        
+        {/* TAB 4: LMD PROGRESSION PATHWAY */}
+        {activeTab === "lmd" && lmdProfile && (
+          <LmdProgressionPathway profile={lmdProfile} />
+        )}
         {/* TAB 1: ACADEMIC */}
         {activeTab === "academic" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

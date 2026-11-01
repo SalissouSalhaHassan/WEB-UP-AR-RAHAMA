@@ -186,3 +186,14 @@ export async function generateAIReportSummaryAction(payload: AIReportSummaryPayl
     return { data: response };
   });
 }
+
+
+/**
+ * Server action to get AI Dropout & Failure Risk Profile for an individual student
+ */
+export async function getStudentRiskProfileAction(studentId: number) {
+  return protectedDbAction("Students", "canView", async () => {
+    const profile = await AIAnalyticsService.getStudentRiskProfile(studentId);
+    return { data: profile };
+  });
+}

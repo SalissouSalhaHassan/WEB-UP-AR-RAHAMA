@@ -3,6 +3,8 @@ import { getStudentBehaviorRewards, getStudentCounselorNotes, getIncidents } fro
 import { getCurrentUser } from "@/domains/auth/services/session";
 import { redirect } from "next/navigation";
 import StudentProfileClient from "./StudentProfileClient";
+import { LmdProgressionService } from "@/domains/academics/services/lmd-progression.service";
+import { AIAnalyticsService } from "@/domains/ai/services/ai-analytics.service";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +45,22 @@ export default async function StudentProfilePage({ params }: { params: Promise<{
     // Suppress error if not authorized (we handle showing/hiding tab in UI)
   }
 
+  // 6. Fetch interactive LMD Progression Profile (for university / higher ed students)
+  let lmdProfile = null;
+  try {
+    lmdProfile = await LmdProgressionService.getStudentProgression(studentId);
+  } catch (e) {
+    console.warn("Could not fetch LMD progression for student:", e);
+  }
+
+  // 7. Fetch AI Early Warning & Failure Risk Profile
+  let aiRiskProfile = null;
+  try {
+    aiRiskProfile = await AIAnalyticsService.getStudentRiskProfile(studentId);
+  } catch (e) {
+    console.warn("Could not fetch AI risk profile for student:", e);
+  }
+
   return (
     <StudentProfileClient
       currentUser={currentUser}
@@ -53,6 +71,8 @@ export default async function StudentProfilePage({ params }: { params: Promise<{
       rewards={rewards}
       incidents={studentIncidents}
       counselorNotes={counselorNotes}
+      lmdProfile={lmdProfile}
+      aiRiskProfile={aiRiskProfile}
     />
   );
 }

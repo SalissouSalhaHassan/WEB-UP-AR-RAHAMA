@@ -1,3 +1,4 @@
+import { AIRiskBadge } from "@/domains/ai/components/AIRiskBadge";
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 
 interface BIClientProps {
+  aiOverview?: any;
   currentUser: any;
   dropoutAlerts: any[];
   regressionAlerts: any[];
@@ -37,7 +39,8 @@ export default function BIClient({
   dropoutAlerts: initialDropoutAlerts,
   regressionAlerts: initialRegressionAlerts,
   indicators,
-  metrics
+  metrics,
+  aiOverview
 }: BIClientProps) {
   const [activeTab, setActiveTab] = useState<"predictive" | "indicators" | "decisions" | "reports">("predictive");
   const [activeSubTab, setActiveSubTab] = useState<"dropout" | "regression">("dropout");
@@ -366,6 +369,48 @@ export default function BIClient({
       {/* ─── TAB 1: PREDICTIVE ALERTS ─── */}
       {activeTab === "predictive" && (
         <div className="space-y-6">
+          {/* AI Dropout & Failure Early Warning Overview */}
+          {aiOverview && (
+            <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 border border-indigo-500/30 rounded-3xl p-6 text-white shadow-lg space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
+                    <Sparkles size={14} /> Modèle d'Intelligence Artificielle — Détection du Décrochage & Échec
+                  </div>
+                  <h3 className="text-xl font-black text-white">Tableau de Bord Prédictif & Analyse des Risques</h3>
+                  <p className="text-slate-400 text-xs">
+                    Analyse multifactorielle temps réel croisant les notes actuelles, les absences sur 30 jours et les tendances de régression.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-indigo-300">{aiOverview.averageRiskScore}%</span>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Indice Moyen de Risque</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Élèves Analysés</span>
+                  <p className="text-2xl font-black text-white mt-1">{aiOverview.totalStudentsAnalyzed}</p>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-bold text-red-300 uppercase">Risque Critique (🔴)</span>
+                  <p className="text-2xl font-black text-red-400 mt-1">{aiOverview.criticalCount}</p>
+                </div>
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-bold text-amber-300 uppercase">Risque Élevé (🟠)</span>
+                  <p className="text-2xl font-black text-amber-400 mt-1">{aiOverview.highCount}</p>
+                </div>
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-bold text-yellow-300 uppercase">Risque Modéré (🟡)</span>
+                  <p className="text-2xl font-black text-yellow-400 mt-1">{aiOverview.moderateCount}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative">
               <div className="absolute right-4 top-4 w-11 h-11 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600">
