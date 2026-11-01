@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray, sql, desc, or, isNull } from "drizzle-orm";
 import { db, readDb } from "@/infrastructure/database";
 import { students } from "@/infrastructure/database/schema/students";
-import { studentFees } from "@/infrastructure/database/schema/finance";
+import { studentFees, feePayments } from "@/infrastructure/database/schema/finance";
 import { classSubjects, schoolClasses, schoolSessions } from "@/infrastructure/database/schema/academics";
 import { getMobileUser, mobileJsonError } from "../_lib/auth";
 import { getUserRoleType, getCompatibleLevels, normalizeLevel, hasAllEducationalLevels, isStudentInEducationalLevel } from "@/domains/auth/services/rbac";
