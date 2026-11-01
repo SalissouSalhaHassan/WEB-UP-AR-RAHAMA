@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import StudentDialog from "@/domains/students/components/StudentDialog";
+import { DeleteStudentDialog } from "@/domains/students/components/DeleteStudentDialog";
 import RepairDataButton from "@/domains/students/components/RepairDataButton";
 import ActionMenu from "@/components/common/ActionMenu";
 import Link from "next/link";
@@ -151,6 +152,7 @@ export default function StudentsClient({
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
   const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [deletingStudent, setDeletingStudent] = useState<any>(null);
   const itemsPerPage = 8;
   const schoolId = activeSchoolId ?? currentUser?.schoolId ?? null;
 
@@ -634,11 +636,11 @@ export default function StudentsClient({
                 </div>
                 <ActionMenu 
                   title={`Gérer ${student.nomEtudiant}`}
-                  onDelete={deleteStudent.bind(null, student.id)}
                   canEdit={canEdit && !isSessionFrozen}
                   canDelete={canDelete && !isSessionFrozen}
                   studentId={student.id}
                   onEdit={() => !isSessionFrozen && setEditingStudent(student)}
+                  customDeleteClick={() => !isSessionFrozen && setDeletingStudent(student)}
                 />
               </div>
             </div>
@@ -740,6 +742,31 @@ export default function StudentsClient({
             });
 
             setEditingStudent(null);
+          }}
+        />
+      )}
+
+      {/* Delete Student with Mandatory Reason Dialog */}
+      {deletingStudent && (
+        <DeleteStudentDialog
+          open={!!deletingStudent}
+          onClose={() => setDeletingStudent(null)}
+          student={deletingStudent}
+          onConfirm={async (reason) => {
+            const res = await deleteStudent(deletingStudent.id, reason);
+            if (res.success) {
+              setAllStudents(prev => {
+                const filtered = prev.filter(s => s.id !== deletingStudent.id);
+                if (schoolId) {
+                  import("@/infrastructure/local-db/cache").then(({ cacheStudents }) => {
+                    cacheStudents(filtered, schoolId).catch(() => {});
+                  });
+                }
+                return filtered;
+              });
+              setDeletingStudent(null);
+            }
+            return res;
           }}
         />
       )}

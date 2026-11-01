@@ -362,6 +362,98 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === "deleteStudent") {
+      const studentId = Number(payload.studentId || payload.id);
+      const reason = String(payload.reason || "").trim() || "Suppression administrative";
+
+      if (!studentId) {
+        return mobileJsonError("ID élève manquant.", 400);
+      }
+
+      if (roleType === "teacher" || roleType === "enseignant") {
+        return mobileJsonError("Non autorisé.", 403);
+      }
+
+      // Find student
+      const existing = await readDb.query.students.findFirst({
+        where: and(
+          eq(students.id, studentId),
+          schoolId ? eq(students.schoolId, schoolId) : undefined
+        ),
+      });
+
+      if (!existing) {
+        return mobileJsonError("Élève introuvable.", 404);
+      }
+
+      // Check level director permission
+      const userLevel = user.educationalLevel;
+      if (
+        roleType === "level_director" &&
+        userLevel &&
+        !hasAllEducationalLevels(userLevel) &&
+        !isStudentInEducationalLevel(existing, userLevel)
+      ) {
+        return mobileJsonError("Accès refusé. Cet élève appartient à un autre secteur.", 403);
+      }
+
+      // 1. Audit log with deletion reason
+      try {
+        await db.execute(sql`
+          INSERT INTO audit_logs (school_id, user_id, action, table_name, record_id, old_data, timestamp)
+          VALUES (
+            ${existing.schoolId || schoolId},
+            ${user.id},
+            'DELETE',
+            'students',
+            ${String(studentId)},
+            ${JSON.stringify({
+              id: existing.id,
+              nomEtudiant: existing.nomEtudiant,
+              numAdmission: existing.numAdmission,
+              classe: existing.classe,
+              educationalLevel: existing.educationalLevel,
+              session: existing.session,
+              reason: reason,
+              deletedBy: user.utilisateur || "Admin",
+              deletedAt: new Date().toISOString(),
+            })},
+            NOW()
+          )
+        `);
+      } catch (auditErr) {
+        console.warn("[Mobile deleteStudent] Audit log warning:", auditErr);
+      }
+
+      // 2. Clean up fee records
+      try {
+        const studentFeeRows = await readDb.query.studentFees.findMany({
+          where: eq(studentFees.studentId, studentId),
+          columns: { id: true },
+        });
+        if (studentFeeRows.length > 0) {
+          const feeIds = studentFeeRows.map((f) => f.id);
+          await db.delete(feePayments).where(inArray(feePayments.feeId, feeIds));
+          await db.delete(studentFees).where(eq(studentFees.studentId, studentId));
+        }
+      } catch (finErr) {
+        console.warn("[Mobile deleteStudent] Finance cleanup warning:", finErr);
+      }
+
+      // 3. Delete student
+      await db.delete(students).where(
+        and(
+          eq(students.id, studentId),
+          schoolId ? eq(students.schoolId, schoolId) : undefined
+        )
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Élève supprimé avec succès.",
+      });
+    }
+
     return mobileJsonError("Action inconnue", 400);
   } catch (err: any) {
     return mobileJsonError(`Erreur: ${err.message || err}`, 500);

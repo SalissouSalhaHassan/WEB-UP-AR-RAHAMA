@@ -366,7 +366,10 @@ export async function createStudent(formData: StudentFormData) {
   });
 }
 
-export async function deleteStudent(id: number) {
+import { auditLogs } from "@/infrastructure/database/schema/audit";
+import { studentFees, feePayments } from "@/infrastructure/database/schema/finance";
+
+export async function deleteStudent(id: number, reason?: string) {
   return protectedDbAction("Students", "canDelete", async (user) => {
     const schoolId = await getActiveSchoolId();
     const sessionCheck = await assertStudentSessionEditable(null, schoolId);
@@ -380,23 +383,74 @@ export async function deleteStudent(id: number) {
       return { error: "Non autorisé" };
     }
 
+    const existingStudent = await db.query.students.findFirst({
+      where: and(eq(students.id, id), schoolId ? eq(students.schoolId, schoolId) : undefined),
+    });
+
+    if (!existingStudent) {
+      return { error: "Élève introuvable." };
+    }
+
     if (roleType === "level_director") {
-      const student = await db.query.students.findFirst({
-        where: and(eq(students.id, id), eq(students.schoolId, schoolId)),
-        columns: { id: true, educationalLevel: true }
-      });
-      if (!student || !checkEducationalLevelAccess(user, student.educationalLevel)) {
+      if (!checkEducationalLevelAccess(user, existingStudent.educationalLevel)) {
         return { error: "Accès refusé. Cet élève appartient à un autre secteur." };
       }
     }
 
+    const deletionReason = (reason || "").trim() || "Suppression administrative";
+
+    // 1. Log detailed audit before deletion
+    try {
+      await db.insert(auditLogs).values({
+        schoolId: existingStudent.schoolId || schoolId,
+        userId: user.id,
+        action: "DELETE",
+        tableName: "students",
+        recordId: String(id),
+        oldData: JSON.stringify({
+          id: existingStudent.id,
+          nomEtudiant: existingStudent.nomEtudiant,
+          numAdmission: existingStudent.numAdmission,
+          classe: existingStudent.classe,
+          educationalLevel: existingStudent.educationalLevel,
+          session: existingStudent.session,
+          fraisMensuels: existingStudent.fraisMensuels,
+          statut: existingStudent.statut,
+          reason: deletionReason,
+          deletedBy: user.utilisateur || user.email || user.name || "Admin",
+          deletedAt: new Date().toISOString(),
+        }),
+        newData: null,
+      });
+    } catch (auditErr) {
+      console.warn("[deleteStudent] Audit log warning:", auditErr);
+    }
+
+    // 2. Clean up financial fees & payments to avoid orphaned records
+    try {
+      const studentFeeRows = await db.query.studentFees.findMany({
+        where: eq(studentFees.studentId, id),
+        columns: { id: true },
+      });
+      if (studentFeeRows.length > 0) {
+        const feeIds = studentFeeRows.map((f) => f.id);
+        await db.delete(feePayments).where(inArray(feePayments.feeId, feeIds));
+        await db.delete(studentFees).where(eq(studentFees.studentId, id));
+      }
+    } catch (finErr) {
+      console.warn("[deleteStudent] Finance cleanup warning:", finErr);
+    }
+
+    // 3. Delete student record
     await db.delete(students).where(
       and(
         eq(students.id, id),
-        eq(students.schoolId, schoolId)
+        schoolId ? eq(students.schoolId, schoolId) : undefined
       )
     );
+
     revalidatePath("/dashboard/students");
+    revalidatePath("/dashboard/finance");
     return { success: true };
   });
 }

@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 
 interface ActionMenuProps {
   onDelete?: () => Promise<{ success?: boolean; error?: string }>;
+  customDeleteClick?: () => void;
   onEdit?: () => void;
   editDialog?: React.ReactNode;
   title?: string;
@@ -35,6 +36,7 @@ interface ActionMenuProps {
 
 export default function ActionMenu({ 
   onDelete, 
+  customDeleteClick,
   onEdit, 
   editDialog, 
   title, 
@@ -108,7 +110,13 @@ export default function ActionMenu({
 
           {canDelete && (
             <DropdownMenuItem
-              onClick={() => setIsAlertOpen(true)}
+              onClick={() => {
+                if (customDeleteClick) {
+                  customDeleteClick();
+                } else {
+                  setIsAlertOpen(true);
+                }
+              }}
               className="flex items-center gap-2 p-3 rounded-xl cursor-pointer text-rose-500 hover:bg-rose-50 transition-colors"
             >
               <Trash2 size={16} />
