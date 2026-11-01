@@ -1,3 +1,6 @@
+import { MobileMoneyPaymentModal } from "@/domains/finance/components/MobileMoneyPaymentModal";
+import { QuickWhatsAppModal } from "@/domains/messaging/components/QuickWhatsAppModal";
+import { MessageSquare } from "lucide-react";
 "use client";
 
 import * as React from "react";

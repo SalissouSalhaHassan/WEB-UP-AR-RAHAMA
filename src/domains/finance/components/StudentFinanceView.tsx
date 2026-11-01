@@ -1,3 +1,6 @@
+import { MobileMoneyPaymentModal } from "./MobileMoneyPaymentModal";
+import { Button } from "@/components/ui/button";
+import { Smartphone } from "lucide-react";
 "use client";
 
 import React, { useState } from "react";
@@ -90,6 +93,7 @@ export default function StudentFinanceView({
 }: StudentFinanceViewProps) {
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"history" | "breakdown" | "coges">("history");
+  const [showMobileMoneyModal, setShowMobileMoneyModal] = useState(false);
 
   // Calculations
   const calculatedExpected =
@@ -203,6 +207,31 @@ export default function StudentFinanceView({
           </div>
         </div>
       </div>
+
+      
+      {/* Mobile Money Payment Callout */}
+      {balance > 0 && (
+        <div className="rounded-3xl bg-gradient-to-r from-red-950/60 via-slate-900 to-emerald-950/60 border border-slate-700/80 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
+              <Smartphone size={14} /> Règlement Express par Téléphone (Airtel & Moov Niger)
+            </div>
+            <h3 className="text-lg font-black text-white">
+              Régler votre solde ({formatCFA(balance)}) par Mobile Money
+            </h3>
+            <p className="text-slate-400 text-xs max-w-xl">
+              Payez instantanément par Airtel Money (*144#) ou Moov Flooz (*156#) sans vous déplacer. Un reçu certifié avec QR code vous sera automatiquement envoyé par WhatsApp et SMS.
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowMobileMoneyModal(true)}
+            className="h-12 px-6 bg-gradient-to-r from-red-600 via-indigo-600 to-emerald-600 hover:opacity-90 text-white font-extrabold rounded-2xl shadow-lg shrink-0 gap-2 text-xs uppercase tracking-wider cursor-pointer"
+          >
+            <Smartphone size={18} />
+            Payer par Airtel / Moov
+          </Button>
+        </div>
+      )}
 
       {/* 2. Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -568,6 +597,20 @@ export default function StudentFinanceView({
           canDelete={false}
         />
       )}
+
+      <MobileMoneyPaymentModal
+        isOpen={showMobileMoneyModal}
+        onClose={() => setShowMobileMoneyModal(false)}
+        studentId={student.id}
+        studentName={student.nomEtudiant}
+        defaultAmount={balance > 0 ? balance : 25000}
+        defaultPhone={student.contactUrgence || student.telephoneTuteur || ""}
+        onPaymentSuccess={() => {
+          if (typeof window !== "undefined") {
+            window.location.reload();
+          }
+        }}
+      />
     </div>
   );
 }
