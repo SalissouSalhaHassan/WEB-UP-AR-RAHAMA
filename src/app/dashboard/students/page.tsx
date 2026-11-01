@@ -121,6 +121,7 @@ export default async function StudentsPage({
   return (
     <StudentsClient 
       initialStudents={initialStudents}
+      serverFetchFailed={Boolean(getStudentsError)}
       currentUser={currentUser}
       activeSchoolId={activeSchoolId}
       canEdit={canEdit}

@@ -85,6 +85,7 @@ function StatusBadge({ status }: { status: string }) {
 
 interface StudentsClientProps {
   initialStudents: any[];
+  serverFetchFailed?: boolean;
   currentUser: any;
   activeSchoolId?: number | null;
   canEdit: boolean;
@@ -135,6 +136,7 @@ function getCompatibleEducationalLevels(level: string): string[] {
 
 export default function StudentsClient({ 
   initialStudents, 
+  serverFetchFailed = false,
   currentUser, 
   activeSchoolId, 
   canEdit, 
@@ -167,20 +169,25 @@ export default function StudentsClient({
 
   useEffect(() => {
     async function loadData() {
-      // 1. If currently online and we have fresh server initialStudents, cache them and show
-      if (typeof navigator !== "undefined" && navigator.onLine && schoolId && initialStudents && initialStudents.length > 0) {
+      // 1. Online and the server answered successfully: the server is the source of truth.
+      //    Refresh the local cache even if the list is empty (deleted students must vanish);
+      //    cacheStudents keeps only students that are still waiting in the outbox.
+      if (typeof navigator !== "undefined" && navigator.onLine && schoolId && !serverFetchFailed) {
         try {
           const { cacheStudents } = await import("@/infrastructure/local-db/cache");
-          await cacheStudents(initialStudents, schoolId);
+          await cacheStudents(initialStudents || [], schoolId);
         } catch (e) {
           console.warn("Failed to update student local cache:", e);
         }
-        setAllStudents(initialStudents);
-        setIsLocal(false);
-        return;
+        if (initialStudents && initialStudents.length > 0) {
+          setAllStudents(initialStudents);
+          setIsLocal(false);
+          return;
+        }
       }
 
-      // 2. Offline OR server returned empty: Read from local IndexedDB
+      // 2. Offline, server error, or server list empty: read from local IndexedDB
+      //    (after step 1 it only contains still-unsynced students).
       try {
         const { getCachedStudents } = await import("@/infrastructure/local-db/cache");
         const cached = await getCachedStudents(schoolId);
@@ -244,7 +251,7 @@ export default function StudentsClient({
       window.removeEventListener("online", handleOnlineStatus);
       window.removeEventListener("offline", handleOnlineStatus);
     };
-  }, [initialStudents, schoolId, currentUser?.educationalLevel]);
+  }, [initialStudents, serverFetchFailed, schoolId, currentUser?.educationalLevel]);
 
 
   // Performance Optimization: Student growth and new students count
