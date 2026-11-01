@@ -1,9 +1,10 @@
+import Link from "next/link";
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import AttendanceGrid from "@/domains/attendance/components/AttendanceGrid";
 import { AttendanceFilters } from "@/domains/attendance/components/AttendanceFilters";
-import { ClipboardCheck, Users, Calendar, BookOpen } from "lucide-react";
+import { ClipboardCheck, ShieldCheck, Users, Calendar, BookOpen } from "lucide-react";
 import { getClassDisplayName } from "@/domains/academics/utils/class-name";
 
 interface AttendanceClientProps {
@@ -197,6 +198,16 @@ export default function AttendanceClient({
             )}
           </div>
           <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Enregistrez la présence quotidienne des élèves</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/attendance/kiosk"
+            className="h-12 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:opacity-90 text-white font-extrabold text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+          >
+            <ShieldCheck size={18} />
+            Borne Portail (Mode Kiosk)
+          </Link>
         </div>
       </div>
 
