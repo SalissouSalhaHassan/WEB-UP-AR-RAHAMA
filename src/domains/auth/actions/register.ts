@@ -34,24 +34,25 @@ export async function registerUser(params: {
     // resolve school directly from the employee or student record!
     if (!school) {
       if (role === "teacher") {
-        const emp = await db.query.employees.findFirst({
-          where: or(
-            eq(employees.empId, matriculeOrEmail.trim()),
-            eq(employees.email, matriculeOrEmail.trim())
-          ),
-        });
+        const cleanEmp = matriculeOrEmail.trim().toUpperCase();
+        const allEmployees = await db.query.employees.findMany();
+        const emp = allEmployees.find(e => (e.empId || "").trim().toUpperCase() === cleanEmp || (e.email || "").trim().toUpperCase() === cleanEmp);
         if (emp && emp.schoolId) {
           school = await db.query.schools.findFirst({
             where: eq(schools.id, emp.schoolId),
           });
         }
       } else {
-        const student = await db.query.students.findFirst({
-          where: eq(students.numAdmission, matriculeOrEmail.trim()),
+        const cleanMat = matriculeOrEmail.trim().toUpperCase();
+        const altMat = cleanMat.startsWith("AD-") ? "AM-" + cleanMat.substring(3) : cleanMat.startsWith("AM-") ? "AD-" + cleanMat.substring(3) : cleanMat;
+        const allStudents = await db.query.students.findMany();
+        const st = allStudents.find(s => {
+          const num = (s.numAdmission || "").trim().toUpperCase();
+          return num === cleanMat || num === altMat;
         });
-        if (student && student.schoolId) {
+        if (st && st.schoolId) {
           school = await db.query.schools.findFirst({
-            where: eq(schools.id, student.schoolId),
+            where: eq(schools.id, st.schoolId),
           });
         }
       }
@@ -86,15 +87,26 @@ export async function registerUser(params: {
 
     // 3. Match Identity
     if (role === "student") {
-      const student = await db.query.students.findFirst({
-        where: and(
-          eq(students.schoolId, school.id),
-          eq(students.numAdmission, matriculeOrEmail.trim())
-        ),
+      const cleanMatricule = matriculeOrEmail.trim();
+      const upperMatricule = cleanMatricule.toUpperCase();
+      let altMatricule = upperMatricule;
+      if (upperMatricule.startsWith("AD-")) {
+        altMatricule = "AM-" + upperMatricule.substring(3);
+      } else if (upperMatricule.startsWith("AM-")) {
+        altMatricule = "AD-" + upperMatricule.substring(3);
+      }
+
+      const allSchoolStudents = await db.query.students.findMany({
+        where: eq(students.schoolId, school.id),
+      });
+
+      const student = allSchoolStudents.find((s) => {
+        const num = (s.numAdmission || "").trim().toUpperCase();
+        return num === upperMatricule || num === altMatricule;
       });
       
       // Secure check: if student not found or PIN doesn't match
-      if (!student || student.activationPin !== activationPin.trim()) {
+      if (!student || (student.activationPin || "").trim() !== activationPin.trim()) {
         return {
           success: false,
           error: "Les informations fournies ne correspondent à aucun profil valide ou le code d'activation est incorrect.",
@@ -118,18 +130,19 @@ export async function registerUser(params: {
       linkedStudentId = student.id;
       educationalLevel = student.educationalLevel || "Primaire";
     } else {
-      const employee = await db.query.employees.findFirst({
-        where: and(
-          eq(employees.schoolId, school.id),
-          or(
-            eq(employees.empId, matriculeOrEmail.trim()),
-            eq(employees.email, matriculeOrEmail.trim())
-          )
-        ),
+      const cleanEmpQuery = matriculeOrEmail.trim().toUpperCase();
+      const allSchoolEmployees = await db.query.employees.findMany({
+        where: eq(employees.schoolId, school.id),
+      });
+
+      const employee = allSchoolEmployees.find((e) => {
+        const empId = (e.empId || "").trim().toUpperCase();
+        const email = (e.email || "").trim().toUpperCase();
+        return empId === cleanEmpQuery || email === cleanEmpQuery;
       });
       
       // Secure check: if employee not found or PIN doesn't match
-      if (!employee || employee.activationPin !== activationPin.trim()) {
+      if (!employee || (employee.activationPin || "").trim() !== activationPin.trim()) {
         return {
           success: false,
           error: "Les informations fournies ne correspondent à aucun profil valide ou le code d'activation est incorrect.",
@@ -202,9 +215,12 @@ export async function registerUser(params: {
         });
 
         if (adminError) {
+          const errMsg = adminError.message?.toLowerCase() || "";
           if (
-            adminError.message.toLowerCase().includes("already registered") ||
-            adminError.message.toLowerCase().includes("already exists")
+            errMsg.includes("already registered") ||
+            errMsg.includes("already been registered") ||
+            errMsg.includes("already exists") ||
+            (adminError as any).status === 422
           ) {
             const { data: listData } = await adminClient.auth.admin.listUsers();
             const existing = listData?.users?.find(
@@ -215,6 +231,12 @@ export async function registerUser(params: {
               await adminClient.auth.admin.updateUserById(existing.id, {
                 password: passwordHash,
                 email_confirm: true,
+                user_metadata: {
+                  full_name: fullName.trim(),
+                  school_id: school.id,
+                  student_id: linkedStudentId,
+                  employee_id: linkedEmployeeId,
+                },
               });
             } else {
               return { success: false, error: "Ce compte existe déjà dans le système d'authentification." };
